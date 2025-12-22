@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>X Spin - Elite Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Shim process.env for browser compatibility
+      window.process = window.process || { env: { API_KEY: "" } };
+      
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              'arcade': ['Orbitron', 'sans-serif'],
+              'ui': ['Rajdhani', 'sans-serif'],
+            },
+            colors: {
+              'vegas-bg': '#020005',
+              'vegas-panel': '#0a0a12',
+              'neon-pink': '#ff00ff',
+              'neon-cyan': '#00ffff',
+              'neon-gold': '#ffd700',
+              'neon-green': '#00ff00',
+              'neon-purple': '#bf00ff',
+            },
+            backgroundImage: {
+              'grid-pattern': "linear-gradient(rgba(191, 0, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(191, 0, 255, 0.05) 1px, transparent 1px)",
+            },
+            animation: {
+              'flicker': 'flicker 0.15s infinite',
+              'glitch': 'glitch 1s linear infinite',
+              'pulse-neon': 'pulseNeon 2s ease-in-out infinite',
+              'blink': 'blink 1s step-start infinite',
+              'celebrate-win': 'celebrateWin 0.6s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              flicker: {
+                '0%, 100%': { opacity: 1 },
+                '50%': { opacity: 0.8 },
+              },
+              blink: {
+                '50%': { opacity: 0 },
+              },
+              glitch: {
+                '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
+                '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
+                '62%': { transform: 'translate(0,0) skew(5deg)' },
+              },
+              pulseNeon: {
+                '0%, 100%': { filter: 'drop-shadow(0 0 5px #00ffff)' },
+                '50%': { filter: 'drop-shadow(0 0 20px #00ffff)' },
+              },
+              celebrateWin: {
+                '0%': { boxShadow: '0 0 5px #ffd700', transform: 'scale(1)' },
+                '100%': { boxShadow: '0 0 25px #ffd700', transform: 'scale(1.05)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --color-bg: #020005;
+        --color-panel: #0a0a12;
+      }
+      body {
+        background-color: var(--color-bg);
+        color: white;
+        font-family: 'Rajdhani', sans-serif;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        width: 100vw;
+        touch-action: manipulation;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        position: relative;
+        z-index: 10;
+      }
+      .scanline {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+        background-size: 100% 4px, 3px 100%;
+        z-index: 500;
+        pointer-events: none;
+        opacity: 0.15;
+      }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+    "react-router-dom": "https://esm.sh/react-router-dom@7.1.3?external=react,react-dom",
+    "d3": "https://esm.sh/d3@7.9.0",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@0.21.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+  </head>
+  <body>
+    <div class="scanline"></div>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+  </body>
+</html>
