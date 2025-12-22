@@ -1,3 +1,5 @@
+import React from 'react';
+
 // CSS-in-JS utility styles object
 export const styles = {
   // Layout
