@@ -133,27 +133,27 @@ const Layout: React.FC<{ children: React.ReactNode; user: User }> = ({ children,
   };
 
   return (
-    <div className="min-h-screen bg-vegas-bg text-white flex flex-col font-ui relative overflow-hidden">
+    <div className="h-screen bg-vegas-bg text-white flex flex-col font-ui relative overflow-hidden">
       {!isRoom && (
-        <header className="h-16 md:h-20 border-b border-neon-purple/50 bg-vegas-panel/90 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 md:px-8 shadow-[0_0_20px_rgba(191,0,255,0.2)]">
-          <div className="flex items-center gap-10">
-            <Link to="/" onClick={() => soundManager.play('click')} className="text-2xl md:text-3xl font-arcade font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan hover:scale-105 transition-transform animate-glitch">
+        <header className="h-14 sm:h-16 md:h-20 border-b border-neon-purple/50 bg-vegas-panel/90 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-2 sm:px-4 md:px-8 shadow-[0_0_20px_rgba(191,0,255,0.2)]">
+          <div className="flex items-center gap-2 sm:gap-6 md:gap-10 flex-1 min-w-0">
+            <Link to="/" onClick={() => soundManager.play('click')} className="text-lg sm:text-2xl md:text-3xl font-arcade font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan hover:scale-105 transition-transform animate-glitch whitespace-nowrap">
               X <span className="text-neon-gold">SPIN</span>
             </Link>
-            <nav className="hidden sm:flex gap-8">
-              <Link to="/" className={`text-sm font-arcade uppercase tracking-widest ${location.pathname === '/' ? 'text-neon-cyan text-glow-cyan' : 'text-slate-400 hover:text-white'}`}>Lobby</Link>
-              <Link to="/dashboard" className={`text-sm font-arcade uppercase tracking-widest ${location.pathname === '/dashboard' ? 'text-neon-pink text-glow-pink' : 'text-slate-400 hover:text-white'}`}>Vault</Link>
+            <nav className="hidden sm:flex gap-4 md:gap-8">
+              <Link to="/" className={`text-xs md:text-sm font-arcade uppercase tracking-widest ${location.pathname === '/' ? 'text-neon-cyan text-glow-cyan' : 'text-slate-400 hover:text-white'}`}>Lobby</Link>
+              <Link to="/dashboard" className={`text-xs md:text-sm font-arcade uppercase tracking-widest ${location.pathname === '/dashboard' ? 'text-neon-pink text-glow-pink' : 'text-slate-400 hover:text-white'}`}>Vault</Link>
             </nav>
           </div>
-          <div className="flex items-center gap-6">
-            <button onClick={toggleSound} className={`p-2 rounded-full border transition-all ${isMuted ? 'border-red-500 text-red-500' : 'border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]'}`}>
+          <div className="flex items-center gap-2 sm:gap-4 md:gap-6 flex-shrink-0">
+            <button onClick={toggleSound} className={`p-1.5 sm:p-2 rounded-full border transition-all text-base sm:text-lg ${isMuted ? 'border-red-500 text-red-500' : 'border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]'}`}>
               {isMuted ? '🔇' : '🔊'}
             </button>
-            <div className="bg-black/60 px-4 py-1.5 rounded-sm border border-neon-green/30">
-              <div className="font-arcade text-lg text-neon-green text-glow-green">${user.balance.toLocaleString()}</div>
+            <div className="bg-black/60 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-sm border border-neon-green/30 whitespace-nowrap">
+              <div className="font-arcade text-xs sm:text-sm md:text-lg text-neon-green text-glow-green">${user.balance.toLocaleString()}</div>
             </div>
-            <Link to="/dashboard" className="transition-all hover:scale-110 active:scale-95">
-              <img src={user.avatar} className={`w-10 h-10 md:w-12 md:h-12 rounded-full border-2 ${rankStyle.borderColor} shadow-[0_0_10px_rgba(255,255,255,0.1)]`} alt="Profile" />
+            <Link to="/dashboard" className="transition-all hover:scale-110 active:scale-95 flex-shrink-0">
+              <img src={user.avatar} className={`w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full border-2 ${rankStyle.borderColor} shadow-[0_0_10px_rgba(255,255,255,0.1)]`} alt="Profile" />
             </Link>
           </div>
         </header>

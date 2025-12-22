@@ -16,8 +16,8 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-4">
-      <div className="bg-vegas-panel/90 border border-neon-purple/50 p-4 sm:p-6 rounded-lg max-w-md w-full relative shadow-[0_0_50px_rgba(191,0,255,0.15)] clip-corner max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-vegas-panel/90 border border-neon-purple/50 p-4 sm:p-6 rounded-lg w-full max-w-md relative shadow-[0_0_50px_rgba(191,0,255,0.15)] clip-corner max-h-[95vh] my-auto overflow-y-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-purple to-transparent opacity-50"></div>
         
         <h2 className="text-lg sm:text-xl md:text-2xl font-arcade text-white mb-4 sm:mb-6 text-center tracking-widest uppercase">HOST <span className="text-neon-purple">X ROOM</span></h2>
@@ -105,9 +105,9 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col justify-center min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-80px)]">
+    <div className="p-2 sm:p-3 md:p-6 max-w-7xl mx-auto flex flex-col justify-center min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-80px)] mt-8 sm:mt-12 md:mt-16">
       {/* Hero */}
-      <div className="text-center mb-8 md:mb-16 relative mt-4 md:mt-0 z-20">
+      <div className="text-center mb-6 sm:mb-8 md:mb-16 relative mt-8 sm:mt-12 md:mt-16 z-20">
         <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter animate-glitch">
           X <span className="text-neon-pink text-glow-pink">SPIN</span>
         </h1>
@@ -159,7 +159,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
              <div className="text-neon-green font-arcade text-xl md:text-2xl mb-1 z-10">1v1</div>
              <div className="w-6 h-0.5 bg-neon-green mb-3 md:mb-4 group-hover:w-20 transition-all duration-500"></div>
              <p className="text-slate-400 font-mono text-[10px] md:text-xs leading-relaxed mb-4 md:mb-6 flex-grow z-10">
-               Direct duel against X-Core. Test your luck. Earn XP and climb the Ranks.
+               1v1 vs random. Both colors split 8 ways on the wheel. Test your luck. Earn XP and climb the Ranks.
              </p>
              <button className="w-full py-2.5 md:py-3 border border-neon-green text-neon-green font-arcade uppercase text-[10px] md:text-sm tracking-widest hover:bg-neon-green hover:text-black transition-all z-10">
                DUEL

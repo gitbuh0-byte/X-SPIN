@@ -21,7 +21,7 @@ const GameDock: React.FC<GameDockProps> = ({ sessions, activeSessionId, onSelect
 
   return (
     <div 
-      className="fixed bottom-16 sm:bottom-4 right-4 md:right-6 z-[150] flex flex-col items-end pointer-events-none"
+      className="fixed bottom-4 right-2 sm:right-4 md:right-6 z-[120] flex flex-col items-end pointer-events-none"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

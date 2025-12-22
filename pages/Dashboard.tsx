@@ -45,8 +45,8 @@ const EditProfileModal: React.FC<{ isOpen: boolean; onClose: () => void; user: U
   const handleSave = () => { onSave({ username, avatar, email, bio }); soundManager.play('lock'); onClose(); };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-vegas-panel border-2 border-neon-cyan box-glow-cyan p-4 sm:p-6 rounded max-w-2xl w-full relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-vegas-panel border-2 border-neon-cyan box-glow-cyan p-4 sm:p-6 rounded w-full max-w-2xl relative max-h-[95vh] my-auto overflow-y-auto">
         <h2 className="text-lg sm:text-xl font-arcade text-white mb-4 sm:mb-6 text-center tracking-widest uppercase">PLAYER SETTINGS</h2>
         <div className="space-y-4 sm:space-y-6">
           {/* Profile Picture Section */}
@@ -97,59 +97,60 @@ const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment
   const progress = Math.min((user.rankXp / nextRankXp) * 100, 100);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-24 overflow-x-hidden">
+    <div className="p-1 sm:p-2 md:p-6 max-w-7xl mx-auto space-y-2 sm:space-y-3 md:space-y-6 pb-24 overflow-x-hidden">
       {onUpdateProfile && <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} onSave={onUpdateProfile} />}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-        <div className="bg-vegas-panel border border-neon-gold/30 p-4 md:p-6 shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-16 h-16 bg-neon-gold/5 -translate-y-8 translate-x-8 rotate-45 group-hover:bg-neon-gold/10 transition-colors"></div>
-          <h3 className="text-neon-gold text-[10px] md:text-xs font-bold uppercase tracking-widest mb-2">BANKROLL</h3>
-          <div className="text-3xl md:text-4xl font-arcade text-white text-glow-gold truncate">${user.balance.toFixed(0)}</div>
-          <div className="mt-4 flex gap-2">
-            <button onClick={() => onOpenPayment('DEPOSIT')} className="flex-1 bg-neon-gold text-black font-bold py-2.5 uppercase text-[10px] tracking-wider transition-transform active:scale-95">Deposit</button>
-            <button onClick={() => onOpenPayment('WITHDRAWAL')} className="flex-1 border border-neon-gold text-neon-gold font-bold py-2.5 uppercase text-[10px] tracking-wider transition-transform active:scale-95">Cash Out</button>
+      {/* Stats Grid - Stacked on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5 sm:gap-2 md:gap-4">
+        <div className="bg-vegas-panel border border-neon-gold/30 p-2 sm:p-2.5 md:p-4 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-8 h-8 bg-neon-gold/5 -translate-y-4 translate-x-4 rotate-45 group-hover:bg-neon-gold/10 transition-colors"></div>
+          <h3 className="text-neon-gold text-[7px] sm:text-[8px] md:text-xs font-bold uppercase tracking-widest mb-1">BANKROLL</h3>
+          <div className="text-lg sm:text-xl md:text-3xl font-arcade text-white text-glow-gold truncate">${user.balance.toFixed(0)}</div>
+          <div className="mt-1.5 sm:mt-2 flex gap-1 sm:gap-1.5">
+            <button onClick={() => onOpenPayment('DEPOSIT')} className="flex-1 bg-neon-gold text-black font-bold py-1 sm:py-1.5 uppercase text-[7px] sm:text-[8px] tracking-wide transition-transform active:scale-95">Deposit</button>
+            <button onClick={() => onOpenPayment('WITHDRAWAL')} className="flex-1 border border-neon-gold text-neon-gold font-bold py-1 sm:py-1.5 uppercase text-[7px] sm:text-[8px] tracking-wide transition-transform active:scale-95">Out</button>
           </div>
         </div>
 
-        <div className="bg-vegas-panel border p-4 md:p-6 shadow-xl relative" style={{ borderColor: rank.color + '50' }}>
-          <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest mb-4" style={{ color: rank.color }}>PLAYER RANK</h3>
-          <div className="flex items-center gap-4 mb-4">
-             <div className={`w-14 h-14 md:w-16 md:h-16 rounded-full border-2 ${rank.borderColor} flex items-center justify-center bg-black font-arcade text-xl shrink-0`} style={{ color: rank.color, boxShadow: `0 0 15px ${rank.color}44` }}>{rank.label.charAt(0)}</div>
-             <div className="min-w-0">
-               <span className="text-lg md:text-2xl font-arcade text-white uppercase block truncate">{rank.label}</span>
-               <span className="text-[9px] text-slate-500 font-mono block uppercase">XP: {user.rankXp} / {nextRankXp}</span>
+        <div className="bg-vegas-panel border p-2 sm:p-2.5 md:p-4 shadow-xl relative" style={{ borderColor: rank.color + '50' }}>
+          <h3 className="text-[7px] sm:text-[8px] md:text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: rank.color }}>RANK</h3>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
+             <div className={`w-9 h-9 sm:w-10 sm:h-10 md:w-14 md:h-14 rounded-full border-2 ${rank.borderColor} flex items-center justify-center bg-black font-arcade text-xs sm:text-sm md:text-lg shrink-0`} style={{ color: rank.color, boxShadow: `0 0 15px ${rank.color}44` }}>{rank.label.charAt(0)}</div>
+             <div className="min-w-0 flex-1">
+               <span className="text-[7px] sm:text-xs md:text-xl font-arcade text-white uppercase block truncate">{rank.label}</span>
+               <span className="text-[6px] sm:text-[7px] md:text-[8px] text-slate-500 font-mono block uppercase">XP: {user.rankXp}/{nextRankXp}</span>
              </div>
           </div>
-          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="w-full h-0.5 sm:h-0.5 bg-slate-800 rounded overflow-hidden">
             <div className="h-full transition-all duration-1000" style={{ width: `${progress}%`, backgroundColor: rank.color }}></div>
           </div>
         </div>
 
-        <div className="bg-vegas-panel border border-neon-cyan/30 p-4 md:p-6 shadow-xl relative">
-          <h3 className="text-neon-cyan text-[10px] md:text-xs font-bold uppercase tracking-widest mb-3">PROFILE</h3>
-          <div className="flex items-center gap-3 mb-4">
-               <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]" alt="U" />
-               <div className="min-w-0"><div className="text-white font-bold font-mono truncate uppercase text-sm">{user.username}</div></div>
+        <div className="bg-vegas-panel border border-neon-cyan/30 p-2 sm:p-2.5 md:p-4 shadow-xl relative">
+          <h3 className="text-neon-cyan text-[7px] sm:text-[8px] md:text-xs font-bold uppercase tracking-widest mb-1">PROFILE</h3>
+          <div className="flex items-center gap-1 sm:gap-1.5 mb-1.5">
+               <img src={user.avatar} className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full border-2 border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]" alt="U" />
+               <div className="min-w-0 flex-1"><div className="text-white font-bold font-mono truncate uppercase text-[7px] sm:text-[8px] md:text-xs">{user.username}</div></div>
           </div>
-          <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-transparent border border-neon-cyan text-neon-cyan font-bold py-2.5 uppercase text-[10px] tracking-wider hover:bg-neon-cyan/10 transition-colors">EDIT_NEURAL_LINK</button>
+          <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-transparent border border-neon-cyan text-neon-cyan font-bold py-1 sm:py-1.5 uppercase text-[6px] sm:text-[7px] md:text-[8px] tracking-wider hover:bg-neon-cyan/10 transition-colors text-center">EDIT</button>
           {onLogout && (
-            <button onClick={onLogout} className="w-full mt-3 bg-transparent border border-neon-pink text-neon-pink font-bold py-2.5 uppercase text-[10px] tracking-wider hover:bg-neon-pink/10 transition-colors">LOGOUT</button>
+            <button onClick={onLogout} className="w-full mt-1 sm:mt-1.5 bg-transparent border border-neon-pink text-neon-pink font-bold py-1 sm:py-1.5 uppercase text-[6px] sm:text-[7px] md:text-[8px] tracking-wider hover:bg-neon-pink/10 transition-colors text-center">LOGOUT</button>
           )}
         </div>
       </div>
 
       {/* History Chart */}
-      <div className="bg-vegas-panel border border-slate-800 p-4 md:p-6 h-64 md:h-80 relative overflow-hidden">
-        <h3 className="text-white font-arcade mb-6 tracking-widest text-[10px] md:text-sm uppercase">WALLET_HISTORY_NODE</h3>
-        <div className="h-[80%] w-full">
+      <div className="bg-vegas-panel border border-slate-800 p-1.5 sm:p-2 md:p-4 h-40 sm:h-48 md:h-64 relative overflow-hidden">
+        <h3 className="text-white font-arcade mb-1.5 sm:mb-2 md:mb-3 tracking-widest text-[7px] sm:text-[8px] md:text-sm uppercase">WALLET_HISTORY_NODE</h3>
+        <div className="h-[88%] w-full">
+
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-              <XAxis dataKey="name" stroke="#444" tick={{fill: '#444', fontSize: 10}} tickLine={false} axisLine={false} />
-              <YAxis stroke="#444" tick={{fill: '#444', fontSize: 10}} tickLine={false} axisLine={false} />
+              <XAxis dataKey="name" stroke="#444" tick={{fill: '#444', fontSize: 9}} tickLine={false} axisLine={false} />
+              <YAxis stroke="#444" tick={{fill: '#444', fontSize: 9}} tickLine={false} axisLine={false} />
               <Tooltip 
-                contentStyle={{ backgroundColor: '#0a0a12', borderColor: '#bf00ff', fontSize: '10px', borderRadius: '0px' }} 
+                contentStyle={{ backgroundColor: '#0a0a12', borderColor: '#bf00ff', fontSize: '9px', borderRadius: '0px' }} 
                 itemStyle={{ color: '#fff' }}
               />
               <Area type="monotone" dataKey="balance" stroke="#bf00ff" fill="#bf00ff33" strokeWidth={2} />
@@ -160,39 +161,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment
 
       {/* Transaction Table */}
       <div className="bg-vegas-panel border border-slate-800 shadow-xl overflow-hidden rounded-sm">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-neon-cyan rounded-full animate-pulse"></div>
-            <h3 className="text-white font-arcade text-[10px] md:text-sm tracking-widest uppercase">TRANSACTION_LOGS</h3>
+        <div className="p-1.5 sm:p-2 md:p-3 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <div className="w-1 h-1 bg-neon-cyan rounded-full animate-pulse"></div>
+            <h3 className="text-white font-arcade text-[7px] sm:text-[8px] md:text-xs tracking-widest uppercase">LOGS</h3>
           </div>
         </div>
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left min-w-[600px]">
-            <thead className="bg-black/80 text-slate-500 text-[10px] uppercase font-mono">
+          <table className="w-full text-left text-[6px] sm:text-[7px] md:text-xs min-w-[420px]">
+            <thead className="bg-black/80 text-slate-500 uppercase font-mono">
               <tr>
-                <th className="px-6 py-4">Protocol_Type</th>
-                <th className="px-6 py-4">Quantum_Value</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Timestamp</th>
+                <th className="px-1.5 sm:px-3 py-1.5 sm:py-2">Type</th>
+                <th className="px-1.5 sm:px-3 py-1.5 sm:py-2">Value</th>
+                <th className="px-1.5 sm:px-3 py-1.5 sm:py-2">Status</th>
+                <th className="px-1.5 sm:px-3 py-1.5 sm:py-2">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-900 font-mono text-[11px] md:text-xs">
+            <tbody className="divide-y divide-slate-900 font-mono">
               {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-white/5 transition-colors group">
-                  <td className={`px-6 py-4 font-bold ${tx.type === 'DEPOSIT' || tx.type === 'WIN' ? 'text-neon-green' : 'text-neon-pink'}`}>{tx.type}</td>
-                  <td className="px-6 py-4 text-white">${tx.amount.toFixed(0)}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-0.5 border text-[9px] ${tx.status === 'COMPLETED' ? 'border-neon-green/50 text-neon-green' : 'border-neon-gold/50 text-neon-gold'}`}>
-                      {tx.status}
+                  <td className={`px-1.5 sm:px-3 py-1 sm:py-2 font-bold ${tx.type === 'DEPOSIT' || tx.type === 'WIN' ? 'text-neon-green' : 'text-neon-pink'}`}>{tx.type}</td>
+                  <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-white">${tx.amount.toFixed(0)}</td>
+                  <td className="px-1.5 sm:px-3 py-1 sm:py-2">
+                    <span className={`px-1 py-0.5 border text-[5px] sm:text-[6px] ${tx.status === 'COMPLETED' ? 'border-neon-green/50 text-neon-green' : 'border-neon-gold/50 text-neon-gold'}`}>
+                      {tx.status.substring(0, 3)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-slate-600 group-hover:text-slate-400 transition-colors">{tx.date}</td>
+                  <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-slate-600 group-hover:text-slate-400 transition-colors text-[6px] sm:text-[7px]">{tx.date}</td>
                 </tr>
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center text-slate-700 font-arcade uppercase text-[10px] tracking-[0.2em]">
-                    No Logs Found in Local Buffer
+                  <td colSpan={4} className="px-1.5 sm:px-3 py-4 text-center text-slate-700 font-arcade uppercase text-[7px] tracking-wide">
+                    No Logs
                   </td>
                 </tr>
               )}

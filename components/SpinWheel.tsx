@@ -64,80 +64,78 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
   }, [segments, themeHex]);
 
   useEffect(() => {
-    // TRIPLE-BARRIER SPIN PREVENTION
-    // 1. spinning prop must be true
-    // 2. animation must not be running
-    // 3. spinInProgressRef.current must be false
-    // 4. segments must exist
-    if (spinning && !isAnimating && !spinInProgressRef.current && segments.length > 0) {
-      // LOCK IMMEDIATELY
-      spinInProgressRef.current = true;
-      
-      // Calculate the rotation needed to align targetIndex segment with the top pointer
-      // The pointer is at the top (0 degrees), and each segment takes up sliceAngle degrees
-      // We need to rotate the wheel so that the TARGET SEGMENT's CENTER aligns with the pointer
-      
-      // Each segment's center is at (startAngle + sliceAngle/2)
-      // We want: wheel rotation = -(targetIndex * sliceAngle + sliceAngle/2) to align segment center with pointer
-      const targetBaseRotation = -(targetIndex * sliceAngle + (sliceAngle / 2));
-      
-      // Add 10 full rotations to make the spin visible
-      const extraFullSpins = 360 * 10; 
-      
-      // Calculate the final rotation, accounting for current position
-      const currentMod = ((currentRotation % 360) + 360) % 360;
-      let diff = targetBaseRotation - currentMod;
-      
-      // Normalize the difference to be positive
-      if (diff < 0) diff += 360;
-      
-      // Total rotation: current + extra spins + difference to reach target
-      const finalRotation = currentRotation + extraFullSpins + diff;
-
-      console.log('🎡 SPIN INITIATED - Lock acquired', { spinInProgressRef: spinInProgressRef.current });
-
-      setIsAnimating(true);
-      setCurrentRotation(finalRotation);
-      soundManager.play('spin');
-
-      const startTime = performance.now();
-      const duration = 8000; // 8 seconds as per requirements
-      let lastTickAngle = currentRotation;
-
-      const step = (now: number) => {
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const easedProgress = 1 - Math.pow(1 - progress, 4); 
-        const frameRot = currentRotation + (finalRotation - currentRotation) * easedProgress;
-        
-        if (Math.abs(frameRot - lastTickAngle) >= sliceAngle) {
-          soundManager.play('tick');
-          lastTickAngle = frameRot;
-        }
-
-        if (progress < 1) {
-          requestAnimationFrame(step);
-        } else {
-          console.log('🎡 SPIN ENDED - Lock releasing');
-          setIsAnimating(false);
-          soundManager.stop('spin');
-          // DO NOT release the lock early
-          spinInProgressRef.current = false;
-          setTimeout(onSpinEnd, 500);
-        }
-      };
-      requestAnimationFrame(step);
+    // BULLETPROOF: NO DOUBLE SPIN EVER
+    // Only reacts to 'spinning' prop changes, ignores all other changes
+    
+    if (!spinning || spinInProgressRef.current) {
+      // Already spinning or not requested to spin
+      return;
     }
-  }, [spinning, targetIndex, segments, isAnimating, currentRotation, sliceAngle, onSpinEnd]);
+
+    // IMMEDIATE LOCK - prevents any re-entry
+    spinInProgressRef.current = true;
+    console.log('🎡 SPIN LOCKED');
+    
+    const targetBaseRotation = -(targetIndex * sliceAngle + (sliceAngle / 2));
+    const extraFullSpins = 360 * 10;
+    const currentMod = ((currentRotation % 360) + 360) % 360;
+    let diff = targetBaseRotation - currentMod;
+    if (diff < 0) diff += 360;
+    const finalRotation = currentRotation + extraFullSpins + diff;
+
+    const startTime = performance.now();
+    const duration = 8000;
+    let lastTickAngle = currentRotation;
+    let animationFrameId: number | null = null;
+    let hasEnded = false;
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = 1 - Math.pow(1 - progress, 4);
+      const frameRot = currentRotation + (finalRotation - currentRotation) * easedProgress;
+      
+      if (Math.abs(frameRot - lastTickAngle) >= sliceAngle) {
+        soundManager.play('tick');
+        lastTickAngle = frameRot;
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      } else if (!hasEnded) {
+        // Animation complete - call onSpinEnd ONCE
+        hasEnded = true;
+        console.log('🎡 SPIN ANIMATION COMPLETE');
+        soundManager.stop('spin');
+        spinInProgressRef.current = false; // RESET FOR NEXT SPIN
+        setTimeout(() => {
+          console.log('🎡 Calling onSpinEnd');
+          onSpinEnd();
+        }, 500);
+      }
+    };
+
+    setIsAnimating(true);
+    setCurrentRotation(finalRotation);
+    soundManager.play('spin');
+    animationFrameId = requestAnimationFrame(step);
+
+    // Only cleanup if component unmounts - don't reset lock on re-runs
+    return () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [spinning]); // ONLY react to spinning prop changes
 
   return (
-    <div className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] flex items-center justify-center select-none overflow-visible">
+    <div className="relative w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] flex items-center justify-center select-none overflow-visible">
       {/* Outer Glow Ring */}
       <div className="absolute inset-[-10px] rounded-full border-2 transition-all duration-1000 animate-pulse" 
            style={{ borderColor: themeHex, filter: `drop-shadow(0 0 30px ${themeHex}66)` }}></div>
       
       {/* Top Pointer */}
-      <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 z-50">
+      <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 md:z-50 z-10">
         <svg width="40" height="60" viewBox="0 0 40 60">
           <path d="M20 60 L0 0 L40 0 Z" fill={themeHex} filter="drop-shadow(0 0 10px rgba(0,0,0,0.8))" />
         </svg>

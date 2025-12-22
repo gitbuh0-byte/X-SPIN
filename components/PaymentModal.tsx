@@ -39,13 +39,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-vegas-panel border-2 border-neon-green box-glow-green p-1 rounded-sm w-full max-w-lg shadow-[0_0_50px_rgba(0,255,0,0.2)] transform transition-all relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-vegas-panel border-2 border-neon-green box-glow-green p-3 sm:p-8 rounded-sm w-full max-w-lg shadow-[0_0_50px_rgba(0,255,0,0.2)] transform transition-all relative my-auto">
         {/* Decor lines */}
-        <div className="absolute top-0 left-10 right-10 h-1 bg-neon-green shadow-[0_0_10px_lime]"></div>
-        <div className="absolute bottom-0 left-10 right-10 h-1 bg-neon-green shadow-[0_0_10px_lime]"></div>
+        <div className="absolute top-0 left-6 sm:left-10 right-6 sm:right-10 h-1 bg-neon-green shadow-[0_0_10px_lime]"></div>
+        <div className="absolute bottom-0 left-6 sm:left-10 right-6 sm:right-10 h-1 bg-neon-green shadow-[0_0_10px_lime]"></div>
 
-        <div className="p-4 sm:p-8">
+        <div className="p-3 sm:p-6">
           <h2 className="text-2xl sm:text-3xl font-arcade text-center text-neon-green mb-6 sm:mb-8 uppercase tracking-widest text-shadow-sm">
             {type === 'DEPOSIT' ? 'Insert Credits' : 'Cash Out'}
           </h2>
