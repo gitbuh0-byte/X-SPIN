@@ -16,40 +16,40 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      <div className="bg-vegas-panel/90 border border-neon-purple/50 p-6 rounded-lg max-w-md w-full relative shadow-[0_0_50px_rgba(191,0,255,0.15)] clip-corner">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-4">
+      <div className="bg-vegas-panel/90 border border-neon-purple/50 p-4 sm:p-6 rounded-lg max-w-md w-full relative shadow-[0_0_50px_rgba(191,0,255,0.15)] clip-corner max-h-[90vh] overflow-y-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-purple to-transparent opacity-50"></div>
         
-        <h2 className="text-xl md:text-2xl font-arcade text-white mb-6 text-center tracking-widest uppercase">HOST <span className="text-neon-purple">X ROOM</span></h2>
+        <h2 className="text-lg sm:text-xl md:text-2xl font-arcade text-white mb-4 sm:mb-6 text-center tracking-widest uppercase">HOST <span className="text-neon-purple">X ROOM</span></h2>
         
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-3 sm:space-y-4 md:space-y-6">
           <div>
-            <label className="block text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-2">Room Name</label>
+            <label className="block text-slate-400 text-[8px] sm:text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-1.5 sm:mb-2">Room Name</label>
             <input 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-black/50 border border-white/10 p-3 md:p-4 text-white font-mono text-sm focus:border-neon-purple focus:outline-none focus:bg-white/5 transition-all rounded-sm"
+              className="w-full bg-black/50 border border-white/10 p-2 sm:p-3 md:p-4 text-white font-mono text-xs sm:text-sm focus:border-neon-purple focus:outline-none focus:bg-white/5 transition-all rounded-sm"
               placeholder="e.g. ELITE TABLE"
             />
           </div>
           <div>
-            <label className="block text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-2">Min Bet ($)</label>
+            <label className="block text-slate-400 text-[8px] sm:text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-1.5 sm:mb-2">Min Bet ($)</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neon-purple font-arcade">$</span>
+              <span className="absolute left-2 sm:left-3 md:left-4 top-1/2 -translate-y-1/2 text-neon-purple font-arcade text-sm">$</span>
               <input 
                 type="number"
                 value={bet}
                 onChange={(e) => setBet(e.target.value)}
-                className="w-full bg-black/50 border border-white/10 p-3 md:p-4 pl-10 text-white font-mono text-sm focus:border-neon-purple focus:outline-none focus:bg-white/5 transition-all rounded-sm"
+                className="w-full bg-black/50 border border-white/10 p-2 sm:p-3 md:p-4 pl-7 sm:pl-8 md:pl-10 text-white font-mono text-xs sm:text-sm focus:border-neon-purple focus:outline-none focus:bg-white/5 transition-all rounded-sm"
               />
             </div>
           </div>
         </div>
 
-        <div className="flex gap-4 mt-8">
+        <div className="flex gap-2 sm:gap-3 md:gap-4 mt-6 sm:mt-8">
           <button 
             onClick={() => { soundManager.play('click'); onClose(); }} 
-            className="flex-1 py-3 border border-slate-700 text-slate-400 font-arcade hover:border-white hover:text-white transition-colors uppercase text-xs"
+            className="flex-1 py-2 sm:py-2.5 md:py-3 border border-slate-700 text-slate-400 font-arcade hover:border-white hover:text-white transition-colors uppercase text-[8px] sm:text-[9px] md:text-xs"
           >
             CANCEL
           </button>
@@ -60,7 +60,7 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCr
                 onCreate(name, parseInt(bet)); 
               } 
             }} 
-            className="flex-1 py-3 bg-neon-purple text-white font-arcade hover:bg-neon-purple/80 transition-colors uppercase text-xs tracking-wide shadow-[0_0_15px_rgba(191,0,255,0.4)]"
+            className="flex-1 py-2 sm:py-2.5 md:py-3 bg-neon-purple text-white font-arcade hover:bg-neon-purple/80 transition-colors uppercase text-[8px] sm:text-[9px] md:text-xs tracking-wide shadow-[0_0_15px_rgba(191,0,255,0.4)]"
           >
             CREATE
           </button>
@@ -108,7 +108,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col justify-center min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-80px)]">
       {/* Hero */}
       <div className="text-center mb-8 md:mb-16 relative mt-4 md:mt-0 z-20">
-        <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter">
+        <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter animate-glitch">
           X <span className="text-neon-pink text-glow-pink">SPIN</span>
         </h1>
         <div className="h-1 w-16 md:w-24 bg-gradient-to-r from-neon-cyan via-white to-neon-pink mx-auto mb-4 md:mb-6"></div>

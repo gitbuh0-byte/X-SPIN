@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { soundManager } from '../services/soundManager.ts';
+import { COLOR_HEX } from '../constants.ts';
 
 interface SpinWheelProps {
   spinning: boolean;
@@ -14,6 +15,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
   const wheelGroupRef = useRef<SVGGElement>(null);
   const [currentRotation, setCurrentRotation] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const spinInProgressRef = useRef(false);
   
   const sliceAngle = useMemo(() => 360 / (segments.length || 1), [segments.length]);
 
@@ -39,10 +41,9 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
 
     arcs.append("path")
       .attr("d", arc)
-      .attr("fill", (d, i) => {
-        if (d.data.color === 'green') return '#00aa00';
-        if (d.data.color === 'red') return i % 2 === 0 ? '#440a12' : '#220508';
-        return i % 2 === 0 ? '#0a0a25' : '#04040e';
+      .attr("fill", (d) => {
+        const hexColor = COLOR_HEX[d.data.color as keyof typeof COLOR_HEX];
+        return hexColor ? hexColor + '88' : '#ffffff88'; // Use color with 50% opacity
       })
       .attr("stroke", themeHex)
       .attr("stroke-width", "2")
@@ -63,21 +64,44 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
   }, [segments, themeHex]);
 
   useEffect(() => {
-    if (spinning && !isAnimating && segments.length > 0) {
+    // TRIPLE-BARRIER SPIN PREVENTION
+    // 1. spinning prop must be true
+    // 2. animation must not be running
+    // 3. spinInProgressRef.current must be false
+    // 4. segments must exist
+    if (spinning && !isAnimating && !spinInProgressRef.current && segments.length > 0) {
+      // LOCK IMMEDIATELY
+      spinInProgressRef.current = true;
+      
+      // Calculate the rotation needed to align targetIndex segment with the top pointer
+      // The pointer is at the top (0 degrees), and each segment takes up sliceAngle degrees
+      // We need to rotate the wheel so that the TARGET SEGMENT's CENTER aligns with the pointer
+      
+      // Each segment's center is at (startAngle + sliceAngle/2)
+      // We want: wheel rotation = -(targetIndex * sliceAngle + sliceAngle/2) to align segment center with pointer
       const targetBaseRotation = -(targetIndex * sliceAngle + (sliceAngle / 2));
+      
+      // Add 10 full rotations to make the spin visible
       const extraFullSpins = 360 * 10; 
+      
+      // Calculate the final rotation, accounting for current position
       const currentMod = ((currentRotation % 360) + 360) % 360;
       let diff = targetBaseRotation - currentMod;
-      if (diff <= 0) diff += 360;
       
+      // Normalize the difference to be positive
+      if (diff < 0) diff += 360;
+      
+      // Total rotation: current + extra spins + difference to reach target
       const finalRotation = currentRotation + extraFullSpins + diff;
+
+      console.log('🎡 SPIN INITIATED - Lock acquired', { spinInProgressRef: spinInProgressRef.current });
 
       setIsAnimating(true);
       setCurrentRotation(finalRotation);
       soundManager.play('spin');
 
       const startTime = performance.now();
-      const duration = 6000;
+      const duration = 8000; // 8 seconds as per requirements
       let lastTickAngle = currentRotation;
 
       const step = (now: number) => {
@@ -94,8 +118,11 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
         if (progress < 1) {
           requestAnimationFrame(step);
         } else {
+          console.log('🎡 SPIN ENDED - Lock releasing');
           setIsAnimating(false);
           soundManager.stop('spin');
+          // DO NOT release the lock early
+          spinInProgressRef.current = false;
           setTimeout(onSpinEnd, 500);
         }
       };

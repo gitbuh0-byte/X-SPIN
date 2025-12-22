@@ -20,85 +20,100 @@ const INITIAL_USER: User = {
   bio: 'Ready to roll!'
 };
 
-const LoginScreen: React.FC<{ onLogin: (username?: string) => void }> = ({ onLogin }) => {
-  const [formData, setFormData] = useState({ username: '', password: '' });
+const LoginScreen: React.FC<{ onLogin: (username?: string, email?: string) => void }> = ({ onLogin }) => {
+  const [formData, setFormData] = useState({ email: '', password: '', username: '' });
   const [isRegister, setIsRegister] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.email || !formData.password || (isRegister && !formData.username)) {
+      return;
+    }
     soundManager.play('start');
-    onLogin(formData.username || 'SpinMaster');
+    onLogin(formData.username || 'SpinMaster', formData.email);
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-vegas-bg relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-vegas-bg relative overflow-hidden p-3 sm:p-4">
       <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
       
-      <div className="absolute top-10 left-10 w-48 h-1 bg-neon-cyan/20 rotate-45 pointer-events-none"></div>
-      <div className="absolute bottom-10 right-10 w-48 h-1 bg-neon-pink/20 rotate-45 pointer-events-none"></div>
+      <div className="absolute top-4 sm:top-10 left-4 sm:left-10 w-32 sm:w-48 h-1 bg-neon-cyan/20 rotate-45 pointer-events-none"></div>
+      <div className="absolute bottom-4 sm:bottom-10 right-4 sm:right-10 w-32 sm:w-48 h-1 bg-neon-pink/20 rotate-45 pointer-events-none"></div>
 
-      <div className="relative z-10 w-full max-w-lg p-4">
-        <div className="mb-12 text-center group">
-          <h1 className="text-8xl md:text-9xl font-arcade font-black text-white group-hover:animate-glitch tracking-tighter transition-all">
+      <div className="relative z-10 w-full max-w-lg">
+        <div className="mb-8 sm:mb-12 text-center group">
+          <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-arcade font-black text-white tracking-tighter transition-all animate-glitch">
             X <span className="text-neon-pink text-glow-pink">SPIN</span>
           </h1>
-          <div className="h-0.5 w-64 bg-neon-cyan mx-auto mt-4 animate-pulse"></div>
-          <p className="mt-4 text-neon-cyan font-arcade text-[10px] tracking-[0.6em] uppercase opacity-70">NEURAL ACCESS PROTOCOL</p>
+          <div className="h-0.5 w-40 sm:w-64 bg-neon-cyan mx-auto mt-2 sm:mt-4 animate-pulse"></div>
+          <p className="mt-2 sm:mt-4 text-neon-cyan font-arcade text-[8px] sm:text-[10px] tracking-[0.4em] sm:tracking-[0.6em] uppercase opacity-70">NEURAL ACCESS PROTOCOL</p>
         </div>
 
-        <div className="bg-vegas-panel/90 backdrop-blur-xl border-4 border-neon-cyan/40 retro-card p-10 md:p-14 shadow-[0_0_80px_rgba(255,255,255,0.15)] relative">
-          <div className="absolute top-0 right-10 px-2 py-1 bg-neon-cyan/20 border-x border-b border-neon-cyan/40 text-[8px] font-arcade text-neon-cyan pointer-events-none">ENCRYPTED_LINK_04</div>
+        <div className="bg-vegas-panel/90 backdrop-blur-xl border-2 sm:border-4 border-neon-cyan/40 retro-card p-4 sm:p-8 md:p-10 lg:p-14 shadow-[0_0_80px_rgba(255,255,255,0.15)] relative">
+          <div className="absolute top-0 right-4 sm:right-10 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-neon-cyan/20 border-x border-b border-neon-cyan/40 text-[7px] sm:text-[8px] font-arcade text-neon-cyan pointer-events-none">ENCRYPTED_LINK_04</div>
           
-          <h2 className="text-2xl font-arcade text-white mb-10 text-center tracking-widest uppercase border-b border-neon-cyan/10 pb-6">
+          <h2 className="text-lg sm:text-2xl font-arcade text-white mb-6 sm:mb-10 text-center tracking-widest uppercase border-b border-neon-cyan/10 pb-4 sm:pb-6">
             {isRegister ? 'IDENTITY_REG' : 'ID_CHECK'}
           </h2>
 
-          <form onSubmit={handleLogin} className="space-y-10">
-            <div className="space-y-3">
-              <label className="text-[10px] text-neon-pink uppercase font-arcade tracking-[0.4em] block opacity-80">Neural_Name</label>
+          <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
+            {isRegister && (
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="text-[7px] sm:text-[9px] text-neon-pink uppercase font-arcade tracking-[0.3em] sm:tracking-[0.4em] block opacity-80">Neural_Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.username}
+                  onChange={(e) => setFormData(p => ({...p, username: e.target.value}))}
+                  className="w-full bg-black border-2 border-neon-cyan/20 p-2 sm:p-3 text-white font-mono focus:border-neon-cyan focus:outline-none transition-all placeholder-slate-800 text-xs sm:text-sm tracking-widest uppercase" 
+                  placeholder="PLAYER_01" 
+                />
+              </div>
+            )}
+            
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[7px] sm:text-[9px] text-neon-pink uppercase font-arcade tracking-[0.3em] sm:tracking-[0.4em] block opacity-80">Gmail_Address</label>
               <input 
-                type="text" 
+                type="email" 
                 required
-                autoFocus
-                value={formData.username}
-                onChange={(e) => setFormData(p => ({...p, username: e.target.value}))}
-                className="w-full bg-black border-2 border-neon-cyan/20 p-5 text-white font-mono focus:border-neon-cyan focus:outline-none transition-all placeholder-slate-800 text-xl tracking-widest uppercase" 
-                placeholder="PLAYER_01" 
+                autoFocus={!isRegister}
+                value={formData.email}
+                onChange={(e) => setFormData(p => ({...p, email: e.target.value}))}
+                className="w-full bg-black border-2 border-neon-cyan/20 p-2 sm:p-3 text-white font-mono focus:border-neon-cyan focus:outline-none transition-all placeholder-slate-800 text-xs sm:text-sm tracking-widest lowercase" 
+                placeholder="player@gmail.com" 
               />
             </div>
             
-            <div className="space-y-3">
-              <label className="text-[10px] text-neon-pink uppercase font-arcade tracking-[0.4em] block opacity-80">Sync_Code</label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[7px] sm:text-[9px] text-neon-pink uppercase font-arcade tracking-[0.3em] sm:tracking-[0.4em] block opacity-80">Sync_Code</label>
               <input 
                 type="password" 
                 required
-                className="w-full bg-black border-2 border-neon-cyan/20 p-5 text-white font-mono focus:border-neon-cyan focus:outline-none transition-all placeholder-slate-800 text-xl tracking-widest" 
+                value={formData.password}
+                onChange={(e) => setFormData(p => ({...p, password: e.target.value}))}
+                className="w-full bg-black border-2 border-neon-cyan/20 p-2 sm:p-3 text-white font-mono focus:border-neon-cyan focus:outline-none transition-all placeholder-slate-800 text-xs sm:text-sm tracking-widest" 
                 placeholder="••••••••" 
               />
             </div>
 
             <button 
               type="submit" 
-              className="w-full bg-neon-cyan text-black font-arcade py-6 uppercase tracking-[0.4em] text-2xl font-black transition-all hover:bg-white hover:shadow-[0_0_50px_rgba(0,255,255,1)] active:scale-95 relative overflow-hidden group"
+              className="w-full bg-neon-cyan text-black font-arcade py-3 sm:py-4 md:py-6 uppercase tracking-[0.2em] sm:tracking-[0.3em] md:tracking-[0.4em] text-sm sm:text-lg md:text-2xl font-black transition-all hover:bg-white hover:shadow-[0_0_50px_rgba(0,255,255,1)] active:scale-95 relative overflow-hidden group"
             >
-              <span className="relative z-10">{isRegister ? 'SYNC' : 'INIT'}</span>
+              <span className="relative z-10">{isRegister ? 'SYNC' : 'START GAME'}</span>
               <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform duration-500 pointer-events-none"></div>
             </button>
           </form>
 
-          <div className="mt-12 text-center">
+          <div className="mt-6 sm:mt-12 text-center">
             <button 
               type="button"
               onClick={() => { setIsRegister(!isRegister); soundManager.play('click'); }}
-              className="text-[11px] text-slate-500 font-arcade hover:text-white transition-all uppercase tracking-[0.3em] border-b border-transparent hover:border-white"
+              className="text-[7px] sm:text-[11px] text-slate-500 font-arcade hover:text-white transition-all uppercase tracking-[0.2em] sm:tracking-[0.3em] border-b border-transparent hover:border-white"
             >
               {isRegister ? '[ BACK_TO_AUTH ]' : '[ NEW_NEURAL_LINK ]'}
             </button>
           </div>
-        </div>
-
-        <div className="mt-16 text-center">
-          <span className="text-neon-gold font-arcade text-xl tracking-[0.6em] uppercase text-glow-gold animate-blink">INSERT COIN</span>
         </div>
       </div>
     </div>
@@ -122,7 +137,7 @@ const Layout: React.FC<{ children: React.ReactNode; user: User }> = ({ children,
       {!isRoom && (
         <header className="h-16 md:h-20 border-b border-neon-purple/50 bg-vegas-panel/90 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 md:px-8 shadow-[0_0_20px_rgba(191,0,255,0.2)]">
           <div className="flex items-center gap-10">
-            <Link to="/" onClick={() => soundManager.play('click')} className="text-2xl md:text-3xl font-arcade font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan hover:scale-105 transition-transform">
+            <Link to="/" onClick={() => soundManager.play('click')} className="text-2xl md:text-3xl font-arcade font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan hover:scale-105 transition-transform animate-glitch">
               X <span className="text-neon-gold">SPIN</span>
             </Link>
             <nav className="hidden sm:flex gap-8">
@@ -179,7 +194,12 @@ const AppContent: React.FC = () => {
   }, [navigate]);
 
   const handleExitGame = useCallback((roomId: string) => {
-    setActiveSessions(prev => prev.filter(s => s.id !== roomId));
+    console.log('handleExitGame called with roomId:', roomId);
+    setActiveSessions(prev => {
+      const filtered = prev.filter(s => s.id !== roomId);
+      console.log('Removed session, remaining sessions:', filtered.length);
+      return filtered;
+    });
     navigate('/');
   }, [navigate]);
 
@@ -187,10 +207,18 @@ const AppContent: React.FC = () => {
     setActiveSessions(prev => prev.map(s => s.id === roomId ? { ...s, status, lastUpdate: Date.now() } : s));
   }, []);
 
-  const handleLogin = (u: string) => {
+  const handleLogin = (u?: string, e?: string) => {
     if (u) setUser(p => ({ ...p, username: u }));
+    if (e) setUser(p => ({ ...p, email: e }));
     localStorage.setItem('xspin_auth', 'true');
     setIsAuthenticated(true);
+    navigate('/');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('xspin_auth');
+    setIsAuthenticated(false);
+    setUser(INITIAL_USER);
     navigate('/');
   };
 
@@ -202,7 +230,7 @@ const AppContent: React.FC = () => {
     <Layout user={user}>
       <Routes>
         <Route path="/" element={<Home user={user} onJoinGame={handleJoinGame} />} />
-        <Route path="/dashboard" element={<Dashboard user={user} transactions={transactions} onOpenPayment={(type) => setPayment({open: true, type})} onUpdateProfile={(updates) => setUser(p => ({...p, ...updates}))} />} />
+        <Route path="/dashboard" element={<Dashboard user={user} transactions={transactions} onOpenPayment={(type) => setPayment({open: true, type})} onUpdateProfile={(updates) => setUser(p => ({...p, ...updates}))} onLogout={handleLogout} />} />
         <Route path="/room/:roomId" element={
           <RoomWrapper 
             user={user} 
@@ -238,15 +266,23 @@ const RoomWrapper: React.FC<{
   updateSessionStatus: (id: string, s: string) => void;
 }> = ({ user, handleUpdateBalance, handleExitGame, updateSessionStatus }) => {
   const { roomId } = useParams<{ roomId: string }>();
+  
+  // Memoize the onStatusChange callback to prevent infinite loops
+  const handleStatusChange = useCallback((status: string) => {
+    if (roomId) {
+      console.log('Status change:', status, 'for roomId:', roomId);
+      updateSessionStatus(roomId, status);
+    }
+  }, [roomId, updateSessionStatus]);
+  
   return (
     <GameRoom 
       user={user} 
       updateBalance={handleUpdateBalance} 
       onWin={(mode) => console.log('Win in', mode)} 
+      roomId={roomId}
       onLeaveGame={handleExitGame}
-      onStatusChange={(status) => {
-        if (roomId) updateSessionStatus(roomId, status);
-      }}
+      onStatusChange={handleStatusChange}
     />
   );
 };

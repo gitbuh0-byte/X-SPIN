@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
  * Generates exciting casino-style commentary for game results.
@@ -11,17 +11,14 @@ export const generateGameCommentary = async (
   playerCount: number
 ): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+    const ai = new GoogleGenerativeAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const response = await model.generateContent({
+      systemInstruction: "You are an elite, high-energy casino commentator for 'X Spin'. Generate a short, hype sentence (max 15 words) congratulating the winner. Use gambling slang and keep it intense.",
       contents: `Winner: ${winner}. Amount Won: $${winAmount}. Players in room: ${playerCount}.`,
-      config: {
-        systemInstruction: "You are an elite, high-energy casino commentator for 'X Spin'. Generate a short, hype sentence (max 15 words) congratulating the winner. Use gambling slang and keep it intense.",
-        temperature: 0.9,
-      },
     });
     
-    return response.text || `UNBELIEVABLE! ${winner} clears the table for $${winAmount}!`;
+    return response.response.text() || `UNBELIEVABLE! ${winner} clears the table for $${winAmount}!`;
   } catch (error) {
     console.error("Commentary Engine Error:", error);
     return `THE HOUSE SHUDDERS! ${winner} takes it all!`;
@@ -37,17 +34,14 @@ export const chatWithAiOracle = async (
   history: string[]
 ): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+    const ai = new GoogleGenerativeAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    const response = await model.generateContent({
+      systemInstruction: "You are the 'X Spin Oracle'. You live within the digital circuitry of this gambling engine. Give cryptic, mystical, and short advice about luck and fortune. Stay in character, be brief, and never encourage irresponsible behavior.",
       contents: `History:\n${history.join('\n')}\n\nUser: ${userMessage}`,
-      config: {
-        systemInstruction: "You are the 'X Spin Oracle'. You live within the digital circuitry of this gambling engine. Give cryptic, mystical, and short advice about luck and fortune. Stay in character, be brief, and never encourage irresponsible behavior.",
-        temperature: 0.8,
-      },
     });
     
-    return response.text || "The mists of probability remain thick...";
+    return response.response.text() || "The mists of probability remain thick...";
   } catch (error) {
     console.error("Oracle Connection Failed:", error);
     return "The circuits hum with static... fortune is silent.";

@@ -20,6 +20,8 @@ class SoundManager {
       hover: new Audio('https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3'),
       click: new Audio('https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3'),
       beep: new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'),
+      warning: new Audio('https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3'),
+      'spin-end': new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'),
     };
 
     this.sounds.bgm.loop = true;

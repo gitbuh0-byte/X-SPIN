@@ -9,6 +9,7 @@ interface DashboardProps {
   transactions: Transaction[];
   onOpenPayment: (type: 'DEPOSIT' | 'WITHDRAWAL') => void;
   onUpdateProfile?: (updates: Partial<User>) => void;
+  onLogout?: () => void;
 }
 
 const data = [
@@ -27,34 +28,69 @@ const EditProfileModal: React.FC<{ isOpen: boolean; onClose: () => void; user: U
   const [email, setEmail] = useState(user.email || '');
   const [bio, setBio] = useState(user.bio || '');
 
+  // Preset avatars for selection
+  const presetAvatars = [
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=SpinMaster`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Cyber`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Neon`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Ghost`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Phoenix`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Vortex`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Plasma`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Eclipse`,
+  ];
+
   if (!isOpen) return null;
 
   const handleSave = () => { onSave({ username, avatar, email, bio }); soundManager.play('lock'); onClose(); };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-      <div className="bg-vegas-panel border-2 border-neon-cyan box-glow-cyan p-6 rounded max-w-md w-full relative">
-        <h2 className="text-xl font-arcade text-white mb-6 text-center tracking-widest uppercase">PLAYER SETTINGS</h2>
-        <div className="space-y-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-vegas-panel border-2 border-neon-cyan box-glow-cyan p-4 sm:p-6 rounded max-w-2xl w-full relative max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg sm:text-xl font-arcade text-white mb-4 sm:mb-6 text-center tracking-widest uppercase">PLAYER SETTINGS</h2>
+        <div className="space-y-4 sm:space-y-6">
+          {/* Profile Picture Section */}
           <div>
-            <label className="block text-neon-cyan text-[10px] font-bold uppercase mb-1">Username</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full bg-black border border-neon-cyan/50 p-3 text-white font-mono text-sm focus:outline-none" />
+            <label className="block text-neon-cyan text-[8px] sm:text-[10px] font-bold uppercase mb-2 sm:mb-3">Profile Picture</label>
+            <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-black/40 rounded border border-neon-cyan/30 flex items-center justify-center">
+              <img src={avatar} className="w-14 sm:w-20 h-14 sm:h-20 rounded-full border-2 border-neon-cyan shadow-[0_0_15px_rgba(0,255,255,0.3)]" alt="Current Avatar" />
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
+              {presetAvatars.map((presetAvatar, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => { soundManager.play('click'); setAvatar(presetAvatar); }}
+                  className={`p-1 sm:p-2 rounded border-2 transition-all ${
+                    avatar === presetAvatar 
+                      ? 'border-neon-cyan bg-neon-cyan/10 shadow-[0_0_10px_rgba(0,255,255,0.5)]' 
+                      : 'border-slate-700 hover:border-neon-cyan/50'
+                  }`}
+                >
+                  <img src={presetAvatar} className="w-full h-10 sm:h-16 rounded object-cover" alt={`Avatar ${idx + 1}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-neon-cyan text-[8px] sm:text-[10px] font-bold uppercase mb-1">Username</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full bg-black border border-neon-cyan/50 p-2 sm:p-3 text-white font-mono text-xs sm:text-sm focus:outline-none" />
           </div>
           <div>
-            <label className="block text-neon-cyan text-[10px] font-bold uppercase mb-1">Bio</label>
-            <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="w-full bg-black border border-neon-cyan/50 p-3 text-white font-mono text-sm h-16 focus:outline-none" />
+            <label className="block text-neon-cyan text-[8px] sm:text-[10px] font-bold uppercase mb-1">Bio</label>
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="w-full bg-black border border-neon-cyan/50 p-2 sm:p-3 text-white font-mono text-xs sm:text-sm h-12 sm:h-16 focus:outline-none" />
           </div>
         </div>
-        <div className="flex gap-4 mt-8">
-          <button onClick={onClose} className="flex-1 py-3 border border-red-500 text-red-500 font-arcade text-xs uppercase">BACK</button>
-          <button onClick={handleSave} className="flex-1 py-3 bg-neon-cyan text-black font-arcade text-xs font-bold uppercase">SAVE</button>
+        <div className="flex gap-3 sm:gap-4 mt-6 sm:mt-8">
+          <button onClick={onClose} className="flex-1 py-2 sm:py-3 border border-red-500 text-red-500 font-arcade text-xs sm:text-sm uppercase">BACK</button>
+          <button onClick={handleSave} className="flex-1 py-2 sm:py-3 bg-neon-cyan text-black font-arcade text-xs sm:text-sm font-bold uppercase">SAVE</button>
         </div>
       </div>
     </div>
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment, onUpdateProfile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment, onUpdateProfile, onLogout }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const rank = RANK_CONFIG[user.rank];
   const nextRankXp = user.rankXp >= 15 ? 15 : user.rankXp >= 10 ? 15 : user.rankXp >= 5 ? 10 : 5;
@@ -97,6 +133,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment
                <div className="min-w-0"><div className="text-white font-bold font-mono truncate uppercase text-sm">{user.username}</div></div>
           </div>
           <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-transparent border border-neon-cyan text-neon-cyan font-bold py-2.5 uppercase text-[10px] tracking-wider hover:bg-neon-cyan/10 transition-colors">EDIT_NEURAL_LINK</button>
+          {onLogout && (
+            <button onClick={onLogout} className="w-full mt-3 bg-transparent border border-neon-pink text-neon-pink font-bold py-2.5 uppercase text-[10px] tracking-wider hover:bg-neon-pink/10 transition-colors">LOGOUT</button>
+          )}
         </div>
       </div>
 

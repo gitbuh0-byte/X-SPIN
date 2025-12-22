@@ -45,7 +45,8 @@ export interface Player {
   username: string;
   avatar: string;
   betAmount: number;
-  selectedColor: 'red' | 'black' | 'green';
+  selectedColor: string;
+  assignedColor: string; // The color this player must bet on
   status: PlayerStatus;
   isBot: boolean;
   lockInTime?: number; // Timestamp when bet becomes confirmed
