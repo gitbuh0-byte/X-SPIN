@@ -8,11 +8,13 @@ export enum PaymentMethod {
 }
 
 export enum GameState {
-  WAITING = 'WAITING',
-  BETTING = 'BETTING',
-  LOCKED = 'LOCKED',
-  SPINNING = 'SPINNING',
-  RESULT = 'RESULT'
+  PRE_GAME = 'PRE_GAME',      // Before bet placement
+  BETTING = 'BETTING',        // Bet placement phase (5 seconds)
+  COLOR_ASSIGN = 'COLOR_ASSIGN', // Color assignment phase
+  WAITING = 'WAITING',        // Waiting for players to ready up
+  LOCKED = 'LOCKED',          // Game locked, all players ready
+  SPINNING = 'SPINNING',      // Wheel is spinning
+  RESULT = 'RESULT'           // Result phase
 }
 
 export enum PlayerStatus {
@@ -29,6 +31,13 @@ export enum UserRank {
   LEGEND = 'LEGEND'
 }
 
+export enum AuthMethod {
+  EMAIL = 'EMAIL',
+  GOOGLE = 'GOOGLE',
+  FACEBOOK = 'FACEBOOK',
+  APPLE = 'APPLE'
+}
+
 export interface User {
   id: string;
   username: string;
@@ -37,7 +46,9 @@ export interface User {
   rank: UserRank;
   rankXp: number; // Wins in competitive modes
   email?: string;
+  phoneNumber?: string;
   bio?: string;
+  authMethod?: AuthMethod;
 }
 
 export interface Player {
@@ -84,8 +95,32 @@ export interface ChatMessage {
 
 export interface GameSession {
   id: string;
-  type: string;
+  type: 'blitz' | '1v1' | 'tournament' | 'grandprix'; // Game mode
+  mode: 'blitz' | '1v1' | 'tournament' | 'grandprix'; // Alternative alias
   status: string; // e.g., "SPINNING", "WAITING"
   themeColor: string;
   lastUpdate: number;
+  playerCount?: number;
+  maxPlayers?: number;
+  isLocked?: boolean;
+  groupNumber?: number; // For Grand Prix: which group (1-10)
+  totalPot?: number; // For Grand Prix: total pot from all 100 players
+}
+
+export interface GrandPrixGroup {
+  groupNumber: number; // 1-10
+  players: Player[];
+  roomId: string;
+  winner?: Player;
+  spinning: boolean;
+  totalPot: number;
+}
+
+export interface GrandPrixState {
+  totalPlayers: number; // 100
+  groups: GrandPrixGroup[]; // 10 groups
+  groupWinners: Player[]; // Winners from each group (10)
+  finalSpinning: boolean;
+  grandWinner?: Player;
+  totalPot: number; // Sum of all bets
 }

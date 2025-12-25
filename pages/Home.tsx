@@ -109,7 +109,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
       {/* Hero */}
       <div className="text-center mb-6 sm:mb-8 md:mb-16 relative mt-8 sm:mt-12 md:mt-16 z-20">
         <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter animate-glitch">
-          X <span className="text-neon-pink text-glow-pink">SPIN</span>
+          X <span className="text-neon-pink text-glow-pink">PIN</span>
         </h1>
         <div className="h-1 w-16 md:w-24 bg-gradient-to-r from-neon-cyan via-white to-neon-pink mx-auto mb-4 md:mb-6"></div>
         <p className="relative z-10 text-slate-400 font-mono text-[10px] md:text-lg tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-80">
@@ -180,7 +180,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
              <div className="text-neon-pink font-arcade text-xl md:text-2xl mb-1 z-10">GRAND PRIX</div>
              <div className="w-6 h-0.5 bg-neon-pink mb-3 md:mb-4 group-hover:w-20 transition-all duration-500"></div>
              <p className="text-slate-400 font-mono text-[10px] md:text-xs leading-relaxed mb-4 md:mb-6 flex-grow z-10">
-               Elite elimination bracket. 20 Players enter, one takes the massive jackpot.
+               100 Players • 10 Groups • 1 Grand Winner. Watch all groups spin. Winner takes all!
              </p>
              <button className="w-full py-2.5 md:py-3 border border-neon-pink text-neon-pink font-arcade uppercase text-[10px] md:text-sm tracking-widest hover:bg-neon-pink hover:text-black transition-all z-10">
                ENTER

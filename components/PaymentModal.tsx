@@ -8,9 +8,10 @@ interface PaymentModalProps {
   onClose: () => void;
   onProcess: (method: PaymentMethod, amount: number) => void;
   type: 'DEPOSIT' | 'WITHDRAWAL';
+  userPhoneNumber?: string;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess, type }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess, type, userPhoneNumber }) => {
   const [amount, setAmount] = useState<string>('50');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -69,6 +70,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess,
               ))}
             </div>
           </div>
+
+          {userPhoneNumber && (
+            <div className="mb-6 sm:mb-8 p-2 sm:p-3 bg-neon-green/10 border border-neon-green/30 rounded">
+              <p className="text-[7px] sm:text-[9px] text-neon-green font-arcade uppercase tracking-wider mb-1">Auto-filled Phone</p>
+              <p className="text-white font-mono text-xs sm:text-sm">{userPhoneNumber}</p>
+            </div>
+          )}
 
           <div className="mb-6 sm:mb-8 text-center">
             <label className="block text-neon-green text-[8px] sm:text-xs font-bold uppercase tracking-wider mb-2 sm:mb-3">Amount</label>

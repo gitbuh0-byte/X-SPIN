@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import SpinWheel from '../components/SpinWheel.tsx';
 import AiChat from '../components/AiChat.tsx';
+import BettingModal from '../components/BettingModal.tsx';
+import ColorAssignmentModal from '../components/ColorAssignmentModal.tsx';
+import PlayAgainModal from '../components/PlayAgainModal.tsx';
 import { GameState, Player, PlayerStatus, ChatMessage, User, UserRank } from '../types.ts';
 import { INITIAL_BOT_NAMES, RANK_CONFIG, WHEEL_SEGMENTS, COLORS, COLOR_HEX } from '../constants.ts';
 import { chatWithAiOracle, generateGameCommentary } from '../services/geminiService.ts';
@@ -10,7 +13,7 @@ import { soundManager } from '../services/soundManager.ts';
 // Winner Alert Component
 const WinnerAlert: React.FC<{ name: string; amount: number; isUserWin: boolean }> = ({ name, amount, isUserWin }) => {
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[999] pointer-events-none">
+    <div className="fixed inset-0 flex items-center justify-center z-[200] pointer-events-none p-4">
       <div className={`animate-bounce text-center pointer-events-auto ${isUserWin ? 'drop-shadow-[0_0_50px_rgba(0,255,0,0.8)]' : 'drop-shadow-[0_0_50px_rgba(255,215,0,0.8)]'}`}>
         {/* Confetti effect background */}
         <div className="absolute inset-0 opacity-50">
@@ -29,19 +32,19 @@ const WinnerAlert: React.FC<{ name: string; amount: number; isUserWin: boolean }
           ))}
         </div>
         
-        <div className="relative bg-gradient-to-b from-neon-gold to-neon-cyan border-4 border-white rounded-lg p-6 sm:p-8 md:p-12 shadow-[0_0_100px_rgba(255,215,0,0.6)]">
-          <div className="text-5xl sm:text-6xl md:text-7xl mb-4 sm:mb-6">🏆</div>
-          <div className={`text-3xl sm:text-4xl md:text-5xl font-arcade font-black mb-3 sm:mb-4 ${isUserWin ? 'text-green-700' : 'text-black'}`}>
+        <div className="relative bg-gradient-to-b from-neon-gold to-neon-cyan border-4 border-white rounded-lg p-4 sm:p-8 md:p-12 shadow-[0_0_100px_rgba(255,215,0,0.6)]">
+          <div className="text-3xl sm:text-5xl md:text-7xl mb-2 sm:mb-4 md:mb-6">🏆</div>
+          <div className={`text-2xl sm:text-4xl md:text-5xl font-arcade font-black mb-2 sm:mb-3 md:mb-4 ${isUserWin ? 'text-green-700' : 'text-black'}`}>
             {isUserWin ? 'YOU WON!' : 'WINNER!'}
           </div>
-          <div className="border-b-2 border-white/30 py-3 mb-4">
-            <div className="text-xl sm:text-2xl md:text-3xl font-arcade font-bold text-black">
+          <div className="border-b-2 border-white/30 py-2 sm:py-3 mb-2 sm:mb-4">
+            <div className="text-lg sm:text-2xl md:text-3xl font-arcade font-bold text-black">
               {name}
             </div>
           </div>
-          <div className="space-y-2 sm:space-y-3">
-            <div className="text-sm sm:text-base md:text-lg font-arcade text-black/80 uppercase tracking-wider">POT WON</div>
-            <div className={`text-3xl sm:text-4xl md:text-5xl font-arcade font-black ${isUserWin ? 'text-green-700 text-glow-green' : 'text-yellow-700'}`}>
+          <div className="space-y-1 sm:space-y-2 md:space-y-3">
+            <div className="text-xs sm:text-base md:text-lg font-arcade text-black/80 uppercase tracking-wider">POT WON</div>
+            <div className={`text-2xl sm:text-4xl md:text-5xl font-arcade font-black ${isUserWin ? 'text-green-700 text-glow-green' : 'text-yellow-700'}`}>
               +${amount.toLocaleString()}
             </div>
           </div>
@@ -114,7 +117,23 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   const roomId = propRoomId || paramRoomId || 'lobby';
   const isMounted = useRef(true);
 
-  const [gameState, setGameState] = useState<GameState>(GameState.WAITING);
+  // Determine game mode from roomId
+  const gameMode = roomId.includes('pve') ? '1v1' as const : roomId.includes('tournament') ? 'tournament' as const : 'blitz' as const;
+  const maxPlayers = gameMode === 'tournament' ? 20 : gameMode === '1v1' ? 2 : 15;
+
+  // Pre-game states for betting flow
+  const [showBettingModal, setShowBettingModal] = useState(true);
+  const [userBetAmount, setUserBetAmount] = useState(0);
+  const [betsPlaced, setBetsPlaced] = useState(false);
+  const [showColorAssignment, setShowColorAssignment] = useState(false);
+  const [userAssignedColor, setUserAssignedColor] = useState('');
+  
+  // Play again flow
+  const [showPlayAgainModal, setShowPlayAgainModal] = useState(false);
+  const [lastWinner, setLastWinner] = useState<{ name: string; amount: number; isUserWin: boolean } | null>(null);
+  const [roundNumber, setRoundNumber] = useState(0);
+
+  const [gameState, setGameState] = useState<GameState>(GameState.PRE_GAME);
   const [players, setPlayers] = useState<Player[]>([]);
   const [targetIndex, setTargetIndex] = useState(0);
   const [timer, setTimer] = useState(5);
@@ -149,6 +168,72 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     }]);
     if (!isAi) soundManager.play('message');
   }, []);
+
+  // ===== BETTING MODAL HANDLERS =====
+  const handleBettingConfirm = (betAmount: number) => {
+    soundManager.play('lock');
+    setUserBetAmount(betAmount);
+    updateBalance(-betAmount);
+    setShowBettingModal(false);
+    
+    // Show color assignment modal
+    setTimeout(() => {
+      setShowColorAssignment(true);
+    }, 300);
+  };
+
+  const handleBettingCancel = () => {
+    soundManager.play('click');
+    // Go back to home
+    navigate('/');
+  };
+
+  const handleColorAssignmentConfirm = () => {
+    soundManager.play('lock');
+    setShowColorAssignment(false);
+    setBetsPlaced(true);
+    
+    // Start the pre-game setup
+    setTimeout(() => {
+      setGameState(GameState.WAITING);
+    }, 500);
+  };
+
+  // ===== PLAY AGAIN HANDLERS =====
+  const handlePlayAgain = () => {
+    soundManager.play('start');
+    setShowPlayAgainModal(false);
+    setRoundNumber(prev => prev + 1);
+    
+    // Reset game state for next round
+    setTimeout(() => {
+      setWinnerAlert(null);
+      setShowBettingModal(true);
+      setUserBetAmount(0);
+      setBetsPlaced(false);
+      setShowColorAssignment(false);
+      setGameState(GameState.PRE_GAME);
+      setChatHistory(prev => [...prev, {
+        id: Math.random().toString(36),
+        sender: 'SYSTEM',
+        text: '🔄 NEXT ROUND STARTING... PLACE YOUR BET!',
+        isAi: true,
+        timestamp: new Date()
+      }]);
+    }, 300);
+  };
+
+  const handleExitToLobbyFromGame = () => {
+    soundManager.play('beep');
+    setShowPlayAgainModal(false);
+    setRoundNumber(0);
+    
+    if (onLeaveGame && roomId) {
+      onLeaveGame(roomId);
+    } else {
+      navigate('/');
+    }
+  };
 
   const colorWagers = useMemo(() => {
     const wagers: Record<string, Player[]> = {};
@@ -197,73 +282,67 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   useEffect(() => {
     isMounted.current = true;
     
-    // Determine game mode and player count from roomId
-    const is1v1 = roomId.includes('pve');
-    const isGrandPrix = roomId.includes('tournament');
-    const isBlitz = !is1v1 && !isGrandPrix;
-    
-    let targetPlayerCount = 15; // Blitz default
-    if (isGrandPrix) targetPlayerCount = 20;
-    else if (is1v1) targetPlayerCount = 1; // 1 opponent only
-    
-    let botNames: string[] = [];
-    if (is1v1) {
-      // For 1v1: single random opponent
-      const randomBotNames = ['CryptoKing', 'LuckySpinner', 'WheelMaster', 'JackpotJoe', 'RiskTaker99', 'SafeBetSally', 'NeonNinja', 'QuantumQuest', 'VortexVince', 'PulsePlayer'];
-      botNames = [randomBotNames[Math.floor(Math.random() * randomBotNames.length)]];
-    } else if (isGrandPrix) {
-      // For Grand Prix: 19 additional bots (plus user = 20)
-      botNames = Array.from({ length: 19 }, (_, i) => `GrandBot${i + 1}`);
-    } else {
-      // For Blitz: 14 additional bots (plus user = 15)
-      botNames = Array.from({ length: 14 }, (_, i) => `BlitzBot${i + 1}`);
-    }
-    
+    // Only initialize if bets have been placed
+    if (!betsPlaced) return;
+
     // Bots with varied ranks to show off the visual system
-    const bots: Player[] = botNames.map((name, i) => {
+    const bots: Player[] = Array.from({ length: maxPlayers - 1 }, (_, i) => {
       const ranks = [UserRank.ROOKIE, UserRank.PRO, UserRank.MASTER, UserRank.LEGEND];
       const botRank = ranks[i % ranks.length];
-      const assignedColor = COLORS[i % COLORS.length];
+      // Rotate colors based on round number to avoid same colors
+      // Using offset of 4 to ensure maximum visual separation with 12 distinct colors
+      const colorIndex = (i + (roundNumber * 4)) % COLORS.length;
+      const assignedColor = COLORS[colorIndex];
       return {
         id: `bot-${i}`,
-        username: name,
-        avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}`,
-        betAmount: 0,
+        username: `${gameMode === '1v1' ? 'Opponent' : gameMode === 'tournament' ? 'GrandBot' : 'BlitzBot'}${i + 1}`,
+        avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${gameMode}bot${i}`,
+        betAmount: Math.floor(Math.random() * 500) + 50,
         selectedColor: assignedColor,
         assignedColor: assignedColor,
-        status: PlayerStatus.IDLE,
+        status: PlayerStatus.CONFIRMED,
         isBot: true,
         rank: botRank
       };
     });
-    
-    // Add the current player with assigned color
-    const userColorIndex = botNames.length % COLORS.length;
+
+    // Add the current player with assigned color (also rotated by round)
+    // Using same offset of 4 to ensure no duplicate colors in same round
+    const userColorIndex = ((maxPlayers - 1) + (roundNumber * 4)) % COLORS.length;
     const userColor = COLORS[userColorIndex];
+    setUserAssignedColor(userColor);
+    
     const userPlayer: Player = {
       id: user.id,
       username: user.username,
       avatar: user.avatar,
-      betAmount: 0,
+      betAmount: userBetAmount,
       selectedColor: userColor,
       assignedColor: userColor,
-      status: PlayerStatus.IDLE,
+      status: PlayerStatus.CONFIRMED,
       isBot: false,
       rank: user.rank
     };
     
     setPlayers([...bots, userPlayer]);
     
-    setChatHistory([{
-      id: 'welcome',
-      sender: 'SYSTEM',
-      text: 'CORE LINK ESTABLISHED. ALL RANKS SYNCED.',
-      isAi: true,
-      timestamp: new Date()
-    }]);
+    setChatHistory(prev => {
+      const lastMsg = prev[prev.length - 1];
+      // Don't add duplicate message
+      if (lastMsg?.text.includes('PLAYERS READY')) {
+        return prev;
+      }
+      return [...prev, {
+        id: Math.random().toString(36),
+        sender: 'SYSTEM',
+        text: `⏳ ${maxPlayers} PLAYERS READY. AWAITING GAME START...`,
+        isAi: true,
+        timestamp: new Date()
+      }];
+    });
 
     return () => { isMounted.current = false; };
-  }, []);
+  }, [betsPlaced, userBetAmount, gameMode, maxPlayers, user, roundNumber]);
 
   // Inactivity tracking - kick user if they don't place a bet during betting phase
   useEffect(() => {
@@ -298,7 +377,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         const userHasBet = userBetPlaced || players.some(p => p.id === user.id && p.status === PlayerStatus.CONFIRMED);
         if (!userHasBet && !hasBeenKickedRef.current && isMounted.current) {
           hasBeenKickedRef.current = true;
-          console.log('User did not place a bet - kicking out');
           setKickoutModal(true);
         }
       }, 15000);
@@ -338,14 +416,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       const potAmount = players
         .filter(p => p.status === PlayerStatus.CONFIRMED)
         .reduce((sum, p) => sum + p.betAmount, 0);
-      console.log('Pot captured at LOCKED state:', potAmount);
       setCurrentPot(potAmount);
     }
   }, [gameState]);
 
   useEffect(() => {
     if (onStatusChange && gameState) {
-      console.log('Calling onStatusChange with gameState:', gameState);
       onStatusChange(gameState);
     }
   }, [gameState, onStatusChange]);
@@ -360,28 +436,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       interval = setInterval(() => {
         setTimer(t => {
           if (t <= 1) {
-            setGameState(GameState.BETTING);
-            return 0;
-          }
-          return t - 1;
-        });
-      }, 1000);
-    } else if (gameState === GameState.BETTING) {
-      setTimer(15);
-      setTimerPhase('betting');
-      const betInterval = setInterval(() => {
-        setPlayers(prev => prev.map(p => {
-          if (p.isBot && p.status === PlayerStatus.IDLE && Math.random() > 0.6) {
-            return { ...p, status: PlayerStatus.CONFIRMED, betAmount: Math.floor(Math.random() * 500) + 50 };
-          }
-          return p;
-        }));
-      }, 2500);
-
-      interval = setInterval(() => {
-        setTimer(t => {
-          if (t <= 1) {
-            clearInterval(betInterval);
             setGameState(GameState.LOCKED);
             return 0;
           }
@@ -389,19 +443,20 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         });
       }, 1000);
     } else if (gameState === GameState.LOCKED) {
+      // Room is locked - all players ready, spinning starts
       setTimer(3);
       setTimerPhase('ready');
+      addChatMessage('ORACLE', '🔒 ROOM LOCKED. ALL PLAYERS IN. SPINNING STARTS...', true);
+      soundManager.play('lock');
       
       interval = setInterval(() => {
         setTimer(t => {
           if (t <= 1) {
             // Trigger spinning
             if (!spinInProgressRef.current) {
-              console.log('🎡 TRIGGERING SPIN STATE');
               spinResultAnnouncedRef.current = false; // Reset for new spin
               // Pick a random target that will be the final resting position
               const newIndex = Math.floor(Math.random() * wheelSegments.length);
-              console.log('Target index set to:', newIndex);
               setTargetIndex(newIndex);
               setGameState(GameState.SPINNING);
             }
@@ -414,7 +469,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       // SPINNING state: wheel is actively spinning
       // Safeguard: if spin hasn't completed after 10 seconds, force it to end
       spinTimeoutId = setTimeout(() => {
-        console.log('⚠️ SPIN TIMEOUT - Forcing completion');
         if (spinInProgressRef.current) {
           spinInProgressRef.current = false;
         }
@@ -425,7 +479,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       clearInterval(interval);
       if (spinTimeoutId) clearTimeout(spinTimeoutId);
     };
-  }, [gameState, wheelSegments.length]);
+  }, [gameState, wheelSegments.length, addChatMessage]);
 
   const handlePlaceBet = () => {
     if (user.balance < betAmount || gameState !== GameState.BETTING) return;
@@ -480,7 +534,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       console.error('No result found for targetIndex:', targetIndex);
       return;
     }
-    console.log('Result value:', result.value);
     setGameState(GameState.RESULT);
     
     // Announce the result
@@ -500,7 +553,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     }
     
     if (winner) {
-      console.log('WINNER:', winner.username);
       // Use the stored pot amount to ensure consistency with display
       const payout = currentPot * 2; // Double their money (pot includes their own bet)
       
@@ -510,44 +562,31 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         onWin(roomId);
         soundManager.play('win');
         setWinnerAlert({ name: user.username, amount: currentPot, isUserWin: true });
+        setLastWinner({ name: user.username, amount: currentPot, isUserWin: true });
         const hype = await generateGameCommentary(user.username, payout, players.length);
         addChatMessage('ORACLE', `🏆 WINNER: ${user.username} TAKES THE POT! ${hype}`, true);
       } else {
         // Another player won
         soundManager.play('lose');
         setWinnerAlert({ name: winner.username, amount: currentPot, isUserWin: false });
+        setLastWinner({ name: winner.username, amount: currentPot, isUserWin: false });
         addChatMessage('ORACLE', `🏆 WINNER: ${winner.username} TAKES THE POT!`, true);
       }
     } else {
       console.log('No winner - no one had the winning color');
       soundManager.play('lose');
       setWinnerAlert({ name: 'NO WINNER', amount: 0, isUserWin: false });
+      setLastWinner({ name: 'NO WINNER', amount: 0, isUserWin: false });
       addChatMessage('ORACLE', `❌ NO BETS ON ${result.color.toUpperCase()}! POT RETURNED!`, true);
     }
 
+    // Show play again modal instead of auto-resetting
     setTimeout(() => {
       if (!isMounted.current) return;
-      spinInProgressRef.current = false; // RESET FOR NEXT SPIN
-      setGameState(GameState.WAITING);
-      setWinnerAlert(null);
-      setBetColor(null);
-      setBetAmount(50);
-      setUserBetPlaced(false);
-      setUserBetConfirmed(false);
-      setPlayers(prev => prev.map((p, i) => {
-        const newColor = COLORS[i % COLORS.length];
-        return {
-          ...p,
-          status: PlayerStatus.IDLE,
-          betAmount: 0,
-          selectedColor: newColor,
-          assignedColor: newColor
-        };
-      }));
-      spinResultAnnouncedRef.current = false; // Reset for next spin
-      spinInProgressRef.current = false; // Reset spin lock
-    }, 6000);
-  }, [targetIndex, players, user.id, user.username, roomId, updateBalance, onWin, addChatMessage, wheelSegments]);
+      spinInProgressRef.current = false;
+      setShowPlayAgainModal(true);
+    }, 2000);
+  }, [targetIndex, players, user.id, user.username, roomId, updateBalance, onWin, addChatMessage, wheelSegments, currentPot]);
 
   const handleSendMessage = async (msg: string) => {
     addChatMessage('YOU', msg);
@@ -573,7 +612,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         navigate('/');
       }
     } else {
-      console.log('No onLeaveGame or roomId, navigating directly');
       navigate('/');
     }
   };
@@ -588,8 +626,40 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-full w-full bg-black overflow-hidden relative">
+    <div className="flex flex-col lg:flex-row h-screen w-screen lg:w-full bg-black overflow-hidden relative">
       <div className="absolute inset-0 bg-grid-pattern opacity-5 pointer-events-none"></div>
+
+      {/* Betting Modal - PRE_GAME Phase */}
+      <BettingModal
+        isOpen={showBettingModal}
+        userBalance={user.balance}
+        minBet={10}
+        maxBet={user.balance}
+        onConfirm={handleBettingConfirm}
+        onCancel={handleBettingCancel}
+        gameMode={gameMode}
+      />
+
+      {/* Color Assignment Modal - After bet is placed */}
+      <ColorAssignmentModal
+        isOpen={showColorAssignment}
+        assignedColor={COLORS[(maxPlayers - 1 + roundNumber * 4) % COLORS.length]}
+        playerName={user.username}
+        gameMode={gameMode}
+        onConfirm={handleColorAssignmentConfirm}
+      />
+
+      {/* Play Again Modal - After game ends */}
+      {lastWinner && (
+        <PlayAgainModal
+          isOpen={showPlayAgainModal}
+          winnerName={lastWinner.name}
+          winAmount={lastWinner.amount}
+          isUserWin={lastWinner.isUserWin}
+          onPlayAgain={handlePlayAgain}
+          onExit={handleExitToLobbyFromGame}
+        />
+      )}
 
       {/* Winner Alert */}
       {winnerAlert && (
@@ -606,21 +676,21 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       </button>
 
       {/* Ranked Player Sidebar - Mobile: Collapsible Drawer, Desktop: Always Visible */}
-      <div className={`fixed md:relative inset-0 md:inset-auto z-40 md:z-auto transition-all duration-300 ${sidebarOpen ? 'w-screen md:w-72' : 'w-0 md:w-72'} md:h-full`}>
+      <div className={`fixed md:relative inset-0 md:inset-auto z-40 md:z-auto transition-all duration-300 ${sidebarOpen ? 'w-full md:w-72' : 'w-0 md:w-72'} md:h-full`}>
         <div className={`absolute inset-0 bg-black/70 md:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
-        <div className={`absolute md:relative left-0 top-0 h-full w-64 md:w-full bg-vegas-panel border-r border-white/5 flex flex-col z-20 pt-12 px-3 py-3 md:pt-0 md:px-0 md:py-0 max-h-full overflow-y-auto custom-scrollbar transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className={`absolute md:relative left-0 top-0 h-full w-64 md:w-full bg-vegas-panel border-r border-white/5 flex flex-col z-20 pt-12 sm:pt-12 md:pt-0 px-2 sm:px-3 py-3 md:p-0 max-h-full overflow-y-auto custom-scrollbar transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <button 
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl"
+            className="md:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl z-30"
           >
             ✕
           </button>
           
-          <div className="p-3 md:p-4 border-b border-white/5 bg-black/40">
-            <h2 className="font-arcade text-[8px] md:text-[9px] text-neon-cyan tracking-widest uppercase opacity-70">SYST_ACTIVE_NODES</h2>
+          <div className="p-2 sm:p-3 md:p-4 border-b border-white/5 bg-black/40">
+            <h2 className="font-arcade text-[8px] sm:text-[9px] md:text-[9px] text-neon-cyan tracking-widest uppercase opacity-70">SYST_ACTIVE_NODES</h2>
             <div className="mt-1 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_lime]"></span>
-              <span className="text-[9px] md:text-[10px] font-mono text-slate-400">{players.length} CONNECTED</span>
+              <span className="text-[9px] sm:text-[10px] md:text-[10px] font-mono text-slate-400">{players.length} CONNECTED</span>
             </div>
           </div>
           <div className="flex-1 overflow-x-auto md:overflow-y-auto custom-scrollbar p-2 md:p-3 space-y-1 md:space-y-1.5 flex md:flex-col gap-1.5 mt-4 md:mt-0">
@@ -664,49 +734,68 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         👥
       </button>
 
-      <div className="flex-1 flex flex-col relative pt-14 sm:pt-12 md:pt-0 w-full md:flex-1">
-        {/* Game State Timer */}
-        <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-30 text-center w-full px-2 sm:px-4">
-          <div className={`bg-black/40 border px-6 sm:px-12 py-3 sm:py-5 rounded-sm shadow-[0_0_40px_rgba(0,0,0,0.4)] inline-block min-w-max transition-all backdrop-blur-sm ${
-            inactivityWarning ? 'border-neon-pink/80 animate-pulse' : 'border-white/10'
-          }`}>
-             <div className={`text-[8px] sm:text-[9px] font-arcade tracking-[0.4em] uppercase mb-1 ${inactivityWarning ? 'text-neon-pink' : 'text-slate-500'}`}>
-               {inactivityWarning ? `⚠️ INACTIVITY: EJECTING IN ${inactivityCountdown}s` : 
-                gameState === GameState.RESULT ? 'FINAL_STATE' : 
-                gameState === GameState.WAITING ? 'GETTING_READY' : 
-                gameState === GameState.BETTING ? 'PLACE_YOUR_BETS' : 
-                gameState}
-             </div>
-             <div className={`text-3xl sm:text-4xl md:text-5xl font-arcade tracking-tighter transition-colors ${
-               inactivityWarning ? 'text-neon-pink animate-flicker' :
-               timer < 5 && gameState === GameState.BETTING ? 'text-neon-pink animate-flicker' : 'text-white'
-             }`}>
-               {gameState === GameState.SPINNING ? 'SPINNING' : inactivityWarning ? `${inactivityCountdown}` : timer}
-             </div>
+      <div className="flex-1 flex flex-col relative pt-12 sm:pt-12 md:pt-0 w-full md:flex-1 min-h-0">
+        {/* Inactivity Warning - Overlay when needed */}
+        {inactivityWarning && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
+            <div className="bg-black/95 border-2 border-neon-pink animate-pulse px-6 sm:px-12 py-8 sm:py-10 rounded-lg text-center backdrop-blur" style={{ boxShadow: '0 0 50px rgba(255, 0, 255, 0.6)' }}>
+              <div className="text-neon-pink text-sm sm:text-base md:text-lg font-arcade tracking-widest uppercase mb-2 sm:mb-4">WARNING INACTIVITY</div>
+              <div className="text-neon-pink text-4xl sm:text-6xl md:text-7xl font-arcade font-black" style={{ textShadow: '0 0 20px rgba(255, 0, 255, 0.8)' }}>
+                {inactivityCountdown}s
+              </div>
+              <div className="text-neon-pink text-xs sm:text-sm font-arcade tracking-wider uppercase mt-3 sm:mt-4">
+                Make a move or be ejected
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Betting Status Display - Betting Phase */}
+        {gameState === GameState.BETTING && !inactivityWarning && (
+          <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 z-30 text-center">
+            <div className="bg-black/40 border border-white/20 px-4 sm:px-8 py-2 sm:py-3 rounded inline-block transition-all backdrop-blur">
+               <div className="text-xs sm:text-sm font-arcade uppercase text-slate-400 mb-1">PLACE YOUR BETS</div>
+               <div className="text-xl sm:text-2xl font-arcade tracking-tighter text-white">
+                 {timer > 5 ? `${timer}s` : `Spin in ${timer}s`}
+               </div>
+            </div>
+          </div>
+        )}
 
         {/* Spin Wheel - Responsive */}
-        <div className="flex-1 flex flex-col items-center justify-center p-1 sm:p-2 md:p-4 min-h-[220px] sm:min-h-[320px] relative overflow-visible">
-          <SpinWheel 
-            spinning={gameState === GameState.SPINNING} 
-            targetIndex={targetIndex} 
-            onSpinEnd={onSpinEnd} 
-            segments={wheelSegments}
-          />
-          
-          {/* Total Pot Display - Mobile Optimized */}
-          <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/90 border border-neon-gold rounded px-2 sm:px-4 py-1.5 sm:py-3">
-            <div className="text-[7px] sm:text-[10px] font-arcade text-neon-gold/70 uppercase tracking-widest">TOTAL POT</div>
-            <div className="text-sm sm:text-2xl font-arcade font-black text-neon-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
-              ${players.filter(p => p.status === PlayerStatus.CONFIRMED).reduce((sum, p) => sum + p.betAmount, 0)}
+        <div className="flex-1 flex flex-col items-center justify-center p-1 sm:p-2 md:p-4 min-h-[220px] sm:min-h-[320px] relative overflow-visible gap-2 sm:gap-4">
+          {/* Countdown Display - Before Spin */}
+          {gameState === GameState.BETTING && timer > 0 && (
+            <div className="text-center mb-2 sm:mb-4">
+              <div className="text-[10px] sm:text-[12px] font-arcade text-neon-cyan uppercase tracking-wider mb-1 sm:mb-2">Spin starts in</div>
+              <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black text-neon-cyan drop-shadow-[0_0_20px_rgba(0,255,255,0.6)]">
+                {timer}s
+              </div>
+            </div>
+          )}
+
+          {/* Wheel Container with Pointer and Pot */}
+          <div className="flex-1 flex flex-col items-center justify-center w-full relative">
+            <SpinWheel 
+              spinning={gameState === GameState.SPINNING} 
+              targetIndex={targetIndex} 
+              onSpinEnd={onSpinEnd} 
+              segments={wheelSegments}
+            />
+            
+            {/* Total Pot Display - Mobile Optimized */}
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/90 border border-neon-gold rounded px-2 sm:px-4 py-1.5 sm:py-3 z-40">
+              <div className="text-[7px] sm:text-[10px] font-arcade text-neon-gold/70 uppercase tracking-widest">TOTAL POT</div>
+              <div className="text-sm sm:text-2xl font-arcade font-black text-neon-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
+                ${players.filter(p => p.status === PlayerStatus.CONFIRMED).reduce((sum, p) => sum + p.betAmount, 0)}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Action Console - Simple Betting */}
-        <div className="p-2 sm:p-3 md:p-4 bg-vegas-panel/90 border-t border-white/5 z-20 backdrop-blur-md h-auto sm:max-h-[40vh] overflow-y-auto">
-          <div className="max-w-2xl mx-auto space-y-2 sm:space-y-3 md:space-y-5">
+        <div className="p-2 sm:p-3 md:p-4 bg-vegas-panel/90 border-t border-white/5 z-20 backdrop-blur-md max-h-[45vh] sm:max-h-[40vh] md:max-h-none overflow-y-auto md:overflow-y-visible">
+          <div className="max-w-full sm:max-w-2xl mx-auto space-y-2 sm:space-y-3 md:space-y-5">
             {/* Your Assigned Color & Bet Status */}
             {(() => {
               const userPlayer = players.find(p => p.id === user.id);
@@ -784,18 +873,18 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
                   <div className="text-[8px] sm:text-[9px] md:text-[11px] font-arcade text-neon-gold uppercase tracking-widest mb-1 sm:mb-2">BET PLACED</div>
                   <div className="text-xl sm:text-2xl md:text-3xl font-arcade font-black text-neon-gold">${betAmount}</div>
                 </div>
-                <div className="flex gap-2 sm:gap-3">
+                <div className="flex gap-1 sm:gap-2 justify-center">
                   <button
                     onClick={handleCancelBet}
-                    className="flex-1 py-2 sm:py-3 md:py-4 font-arcade text-[8px] sm:text-[9px] md:text-[11px] tracking-[0.2em] sm:tracking-[0.3em] transition-all border border-neon-pink text-neon-pink hover:bg-neon-pink/10 rounded-sm shadow-lg"
+                    className="px-4 sm:px-6 py-1.5 sm:py-2 font-arcade text-[7px] sm:text-[8px] md:text-[9px] tracking-[0.15em] transition-all border-2 border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black rounded shadow-lg whitespace-nowrap"
                   >
-                    <span className="relative z-10">CANCEL</span>
+                    CANCEL
                   </button>
                   <button
                     onClick={handleConfirmBet}
-                    className={`flex-1 py-2 sm:py-3 md:py-4 font-arcade text-[8px] sm:text-[9px] md:text-[11px] tracking-[0.2em] sm:tracking-[0.3em] transition-all relative overflow-hidden group rounded-sm shadow-lg bg-neon-cyan text-black hover:bg-white font-black`}
+                    className="px-4 sm:px-6 py-1.5 sm:py-2 font-arcade text-[7px] sm:text-[8px] md:text-[9px] tracking-[0.15em] transition-all border-2 border-neon-cyan bg-neon-cyan text-black hover:bg-white rounded shadow-lg font-black whitespace-nowrap"
                   >
-                    <span className="relative z-10">CONFIRM BET</span>
+                    CONFIRM
                   </button>
                 </div>
               </div>
@@ -821,12 +910,12 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       </div>
 
       {/* Chat Panel - Mobile: Collapsible Drawer, Tablet+: Fixed Side Panel */}
-      <div className={`fixed sm:relative inset-0 sm:inset-auto z-40 sm:z-auto transition-all duration-300 ${chatOpen ? 'w-screen sm:w-72 md:w-80' : 'w-0 sm:w-72 md:w-80'} sm:h-full`}>
+      <div className={`fixed sm:relative inset-0 sm:inset-auto z-40 sm:z-auto transition-all duration-300 ${chatOpen ? 'w-full sm:w-72 md:w-80' : 'w-0 sm:w-72 md:w-80'} sm:h-full`}>
         <div className={`absolute inset-0 bg-black/70 sm:hidden transition-opacity duration-300 ${chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setChatOpen(false)}></div>
         <div className={`absolute sm:relative left-0 top-0 h-full w-64 sm:w-full border-t sm:border-t-0 sm:border-l border-white/5 z-20 bg-black/95 flex flex-col overflow-y-auto custom-scrollbar transition-transform duration-300 sm:translate-x-0 ${chatOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}>
           <button 
             onClick={() => setChatOpen(false)}
-            className="sm:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl"
+            className="sm:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl z-30"
           >
             ✕
           </button>
@@ -846,20 +935,20 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
 
       {/* Kickout Modal */}
       {kickoutModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[99999] backdrop-blur-sm">
-          <div className="bg-vegas-panel border-4 border-neon-pink shadow-[0_0_60px_rgba(255,0,255,0.6)] rounded-sm p-8 sm:p-12 max-w-md mx-4 text-center animate-pulse">
-            <div className="mb-6">
-              <div className="text-5xl mb-4">⚠️</div>
-              <h2 className="text-2xl sm:text-3xl font-arcade text-neon-pink tracking-widest uppercase mb-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[99999] backdrop-blur-sm p-4">
+          <div className="bg-vegas-panel border-4 border-neon-pink shadow-[0_0_60px_rgba(255,0,255,0.6)] rounded-sm p-6 sm:p-8 md:p-12 max-w-md w-full text-center animate-pulse">
+            <div className="mb-4 sm:mb-6">
+              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">⚠️</div>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-arcade text-neon-pink tracking-widest uppercase mb-3 sm:mb-4">
                 KICKED OUT
               </h2>
-              <p className="text-slate-300 font-ui text-sm sm:text-base leading-relaxed mb-6">
+              <p className="text-slate-300 font-ui text-xs sm:text-sm md:text-base leading-relaxed mb-4 sm:mb-6">
                 You have been kicked out of the room for inactivity. Join again to play.
               </p>
             </div>
             <button
               onClick={handleKickoutOkay}
-              className="w-full bg-neon-cyan text-black font-arcade py-4 px-8 uppercase tracking-[0.3em] text-lg font-black transition-all hover:bg-white hover:shadow-[0_0_50px_rgba(0,255,255,1)] active:scale-95 rounded-sm"
+              className="w-full bg-neon-cyan text-black font-arcade py-3 sm:py-4 md:py-4 px-6 sm:px-8 uppercase tracking-[0.3em] text-xs sm:text-base md:text-lg font-black transition-all hover:bg-white hover:shadow-[0_0_50px_rgba(0,255,255,1)] active:scale-95 rounded-sm"
             >
               OKAY
             </button>

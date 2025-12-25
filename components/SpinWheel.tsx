@@ -43,11 +43,11 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
       .attr("d", arc)
       .attr("fill", (d) => {
         const hexColor = COLOR_HEX[d.data.color as keyof typeof COLOR_HEX];
-        return hexColor ? hexColor + '88' : '#ffffff88'; // Use color with 50% opacity
+        return hexColor ? hexColor + 'FF' : '#ffffffff'; // Full brightness, no opacity
       })
       .attr("stroke", themeHex)
       .attr("stroke-width", "2")
-      .attr("stroke-opacity", "0.6");
+      .attr("stroke-opacity", "1");
 
     arcs.append("text")
       .attr("transform", d => {
@@ -74,7 +74,6 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
 
     // IMMEDIATE LOCK - prevents any re-entry
     spinInProgressRef.current = true;
-    console.log('🎡 SPIN LOCKED');
     
     const targetBaseRotation = -(targetIndex * sliceAngle + (sliceAngle / 2));
     const extraFullSpins = 360 * 10;
@@ -105,11 +104,9 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
       } else if (!hasEnded) {
         // Animation complete - call onSpinEnd ONCE
         hasEnded = true;
-        console.log('🎡 SPIN ANIMATION COMPLETE');
         soundManager.stop('spin');
         spinInProgressRef.current = false; // RESET FOR NEXT SPIN
         setTimeout(() => {
-          console.log('🎡 Calling onSpinEnd');
           onSpinEnd();
         }, 500);
       }
@@ -129,15 +126,15 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
   }, [spinning]); // ONLY react to spinning prop changes
 
   return (
-    <div className="relative w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] flex items-center justify-center select-none overflow-visible">
+    <div className="relative w-[30vw] h-[30vw] max-w-[520px] max-h-[520px] min-w-[220px] min-h-[220px] flex items-center justify-center select-none overflow-visible">
       {/* Outer Glow Ring */}
       <div className="absolute inset-[-10px] rounded-full border-2 transition-all duration-1000 animate-pulse" 
            style={{ borderColor: themeHex, filter: `drop-shadow(0 0 30px ${themeHex}66)` }}></div>
       
-      {/* Top Pointer */}
-      <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 md:z-50 z-10">
-        <svg width="40" height="60" viewBox="0 0 40 60">
-          <path d="M20 60 L0 0 L40 0 Z" fill={themeHex} filter="drop-shadow(0 0 10px rgba(0,0,0,0.8))" />
+      {/* Top Pointer - Positioned in front of wheel */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-40 md:z-40">
+        <svg width="50" height="50" viewBox="0 0 50 50">
+          <path d="M25 50 L5 5 L45 5 Z" fill={themeHex} filter="drop-shadow(0 0 15px rgba(0,0,0,0.9))" stroke={themeHex} strokeWidth="1.5" />
         </svg>
       </div>
       

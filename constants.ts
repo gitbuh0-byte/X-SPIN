@@ -51,24 +51,25 @@ export const AVATARS = [
   'https://picsum.photos/seed/user5/50/50',
 ];
 
+// Ultra-vibrant, bright colors with ZERO similarity - maximum visual separation
 export const COLORS = [
-  'red', 'blue', 'green', 'yellow', 'purple', 'orange', 
-  'pink', 'cyan', 'lime', 'magenta', 'teal', 'gold'
+  'red', 'orange', 'yellow', 'lime', 'cyan', 'blue', 
+  'purple', 'magenta', 'white', 'pink', 'green', 'gold'
 ];
 
 export const COLOR_HEX = {
-  red: '#ff0000',
-  blue: '#0099ff',
-  green: '#00ff00',
-  yellow: '#ffff00',
-  purple: '#9900ff',
-  orange: '#ff9900',
-  pink: '#ff0099',
-  cyan: '#00ffff',
-  lime: '#ccff00',
-  magenta: '#ff00ff',
-  teal: '#00ffcc',
-  gold: '#ffd700'
+  red: '#FF0000',           // Pure bright red
+  orange: '#FF8800',        // Vibrant orange (completely different from red)
+  yellow: '#FFFF00',        // Bright pure yellow (completely different from orange)
+  lime: '#00FF00',          // Bright lime green (completely different from yellow)
+  cyan: '#00FFFF',          // Bright cyan (completely different from green)
+  blue: '#0066FF',          // Vibrant bright blue (completely different from cyan)
+  purple: '#AA00FF',        // Vibrant purple (completely different from blue)
+  magenta: '#FF00FF',       // Bright magenta (completely different from purple)
+  white: '#FFFFFF',         // Pure bright white (completely different from magenta)
+  pink: '#FF0066',          // Hot bright pink (completely different from white)
+  green: '#00AA00',         // Bright pure green (different from lime, different from cyan)
+  gold: '#FFAA00'           // Bright gold (different from yellow and orange)
 };
 
 export const WHEEL_SEGMENTS = COLORS.flatMap((color, i) => 

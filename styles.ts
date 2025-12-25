@@ -11,7 +11,7 @@ export const styles = {
   
   flexColCenter: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column', 
     alignItems: 'center',
     justifyContent: 'center'
   } as React.CSSProperties,
