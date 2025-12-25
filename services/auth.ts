@@ -1,10 +1,10 @@
 import { AuthMethod } from '../types.ts';
 
-// Google OAuth Configuration
+// Google OAuth Configuration//
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 const GOOGLE_REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/auth/google/callback` : '';
 
-// Facebook OAuth Configuration
+// Facebook OAuth Configuration//
 const FACEBOOK_APP_ID = process.env.REACT_APP_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
 const FACEBOOK_REDIRECT_URI = `${window.location.origin}/auth/facebook/callback`;
 
