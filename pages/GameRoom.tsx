@@ -5,7 +5,9 @@ import AiChat from '../components/AiChat.tsx';
 import BettingModal from '../components/BettingModal.tsx';
 import ColorAssignmentModal from '../components/ColorAssignmentModal.tsx';
 import PlayAgainModal from '../components/PlayAgainModal.tsx';
-import { GameState, Player, PlayerStatus, ChatMessage, User, UserRank } from '../types.ts';
+import RankUpModal from '../components/RankUpModal.tsx';
+import PaymentModal from '../components/PaymentModal.tsx';
+import { GameState, Player, PlayerStatus, ChatMessage, User, UserRank, PaymentMethod } from '../types.ts';
 import { INITIAL_BOT_NAMES, RANK_CONFIG, WHEEL_SEGMENTS, COLORS, COLOR_HEX } from '../constants.ts';
 import { chatWithAiOracle, generateGameCommentary } from '../services/geminiService.ts';
 import { soundManager } from '../services/soundManager.ts';
@@ -14,8 +16,8 @@ import { soundManager } from '../services/soundManager.ts';
 const WinnerAlert: React.FC<{ name: string; amount: number; isUserWin: boolean }> = ({ name, amount, isUserWin }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[200] pointer-events-none p-4">
-      <div className={`animate-bounce text-center pointer-events-auto ${isUserWin ? 'drop-shadow-[0_0_50px_rgba(0,255,0,0.8)]' : 'drop-shadow-[0_0_50px_rgba(255,215,0,0.8)]'}`}>
-        {/* Confetti effect background */}
+      <div className={`animate-bounce text-center pointer-events-auto ${isUserWin ? 'drop-shadow-[0_0_50px_rgba(0,255,0,0.8)]' : 'drop-shadow-[0_0_50px_rgba(255,0,0,0.8)]'}`}>
+        {/* Confetti/Particle effect background */}
         <div className="absolute inset-0 opacity-50">
           {[...Array(20)].map((_, i) => (
             <div
@@ -24,7 +26,7 @@ const WinnerAlert: React.FC<{ name: string; amount: number; isUserWin: boolean }
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                backgroundColor: ['#00ffff', '#ff00ff', '#ffd700', '#00ff00'][Math.floor(Math.random() * 4)],
+                backgroundColor: isUserWin ? ['#00ffff', '#ff00ff', '#ffd700', '#00ff00'][Math.floor(Math.random() * 4)] : ['#ff0000', '#ff3333', '#cc0000'][Math.floor(Math.random() * 3)],
                 animation: `fall 3s linear infinite`,
                 animationDelay: `${Math.random() * 1}s`
               }}
@@ -32,23 +34,43 @@ const WinnerAlert: React.FC<{ name: string; amount: number; isUserWin: boolean }
           ))}
         </div>
         
-        <div className="relative bg-gradient-to-b from-neon-gold to-neon-cyan border-4 border-white rounded-lg p-4 sm:p-8 md:p-12 shadow-[0_0_100px_rgba(255,215,0,0.6)]">
-          <div className="text-3xl sm:text-5xl md:text-7xl mb-2 sm:mb-4 md:mb-6">🏆</div>
-          <div className={`text-2xl sm:text-4xl md:text-5xl font-arcade font-black mb-2 sm:mb-3 md:mb-4 ${isUserWin ? 'text-green-700' : 'text-black'}`}>
-            {isUserWin ? 'YOU WON!' : 'WINNER!'}
-          </div>
-          <div className="border-b-2 border-white/30 py-2 sm:py-3 mb-2 sm:mb-4">
-            <div className="text-lg sm:text-2xl md:text-3xl font-arcade font-bold text-black">
-              {name}
+        {isUserWin ? (
+          <div className="relative bg-gradient-to-b from-neon-gold to-neon-cyan border-4 border-white rounded-lg p-4 sm:p-8 md:p-12 shadow-[0_0_100px_rgba(255,215,0,0.6)]">
+            <div className="text-3xl sm:text-5xl md:text-7xl mb-2 sm:mb-4 md:mb-6">🏆</div>
+            <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black mb-2 sm:mb-3 md:mb-4 text-green-700">
+              YOU WON!
+            </div>
+            <div className="border-b-2 border-white/30 py-2 sm:py-3 mb-2 sm:mb-4">
+              <div className="text-lg sm:text-2xl md:text-3xl font-arcade font-bold text-black">
+                {name}
+              </div>
+            </div>
+            <div className="space-y-1 sm:space-y-2 md:space-y-3">
+              <div className="text-xs sm:text-base md:text-lg font-arcade text-black/80 uppercase tracking-wider">POT WON</div>
+              <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black text-green-700 text-glow-green">
+                +${amount.toLocaleString()}
+              </div>
             </div>
           </div>
-          <div className="space-y-1 sm:space-y-2 md:space-y-3">
-            <div className="text-xs sm:text-base md:text-lg font-arcade text-black/80 uppercase tracking-wider">POT WON</div>
-            <div className={`text-2xl sm:text-4xl md:text-5xl font-arcade font-black ${isUserWin ? 'text-green-700 text-glow-green' : 'text-yellow-700'}`}>
-              +${amount.toLocaleString()}
+        ) : (
+          <div className="relative bg-gradient-to-b from-red-900 to-red-700 border-4 border-red-400 rounded-lg p-4 sm:p-8 md:p-12 shadow-[0_0_100px_rgba(255,0,0,0.6)]">
+            <div className="text-3xl sm:text-5xl md:text-7xl mb-2 sm:mb-4 md:mb-6">❌</div>
+            <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black mb-2 sm:mb-3 md:mb-4 text-red-200">
+              YOU LOST!
+            </div>
+            <div className="border-b-2 border-red-400/30 py-2 sm:py-3 mb-2 sm:mb-4">
+              <div className="text-lg sm:text-2xl md:text-3xl font-arcade font-bold text-red-100">
+                {name} won
+              </div>
+            </div>
+            <div className="space-y-1 sm:space-y-2 md:space-y-3">
+              <div className="text-xs sm:text-base md:text-lg font-arcade text-red-200/80 uppercase tracking-wider">BET LOST</div>
+              <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black text-red-300">
+                -${amount.toLocaleString()}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
       
       <style>{`
@@ -127,11 +149,20 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   const [betsPlaced, setBetsPlaced] = useState(false);
   const [showColorAssignment, setShowColorAssignment] = useState(false);
   const [userAssignedColor, setUserAssignedColor] = useState('');
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const [showDepositPrompt, setShowDepositPrompt] = useState(false);
+  const [insufficientAmount, setInsufficientAmount] = useState(0);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   
   // Play again flow
   const [showPlayAgainModal, setShowPlayAgainModal] = useState(false);
   const [lastWinner, setLastWinner] = useState<{ name: string; amount: number; isUserWin: boolean } | null>(null);
   const [roundNumber, setRoundNumber] = useState(0);
+
+  // Rank up flow
+  const [showRankUp, setShowRankUp] = useState(false);
+  const [previousRank, setPreviousRank] = useState<UserRank>(UserRank.ROOKIE);
 
   const [gameState, setGameState] = useState<GameState>(GameState.PRE_GAME);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -171,15 +202,22 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
 
   // ===== BETTING MODAL HANDLERS =====
   const handleBettingConfirm = (betAmount: number) => {
+    // Check if user has sufficient balance
+    if (betAmount > user.balance) {
+      // Insufficient funds - close betting modal and show deposit prompt
+      setShowBettingModal(false);
+      setInsufficientAmount(betAmount - user.balance);
+      setShowDepositPrompt(true);
+      soundManager.play('warning');
+      return;
+    }
+    
     soundManager.play('lock');
     setUserBetAmount(betAmount);
     updateBalance(-betAmount);
     setShowBettingModal(false);
-    
-    // Show color assignment modal
-    setTimeout(() => {
-      setShowColorAssignment(true);
-    }, 300);
+    setBetsPlaced(true);  // Initialize players and colors before showing modal
+    setShowColorAssignment(true);
   };
 
   const handleBettingCancel = () => {
@@ -191,7 +229,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   const handleColorAssignmentConfirm = () => {
     soundManager.play('lock');
     setShowColorAssignment(false);
-    setBetsPlaced(true);
     
     // Start the pre-game setup
     setTimeout(() => {
@@ -202,37 +239,38 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   // ===== PLAY AGAIN HANDLERS =====
   const handlePlayAgain = () => {
     soundManager.play('start');
+    setIsTransitioning(true);
     setShowPlayAgainModal(false);
     setRoundNumber(prev => prev + 1);
-    
-    // Reset game state for next round
-    setTimeout(() => {
-      setWinnerAlert(null);
-      setShowBettingModal(true);
-      setUserBetAmount(0);
-      setBetsPlaced(false);
-      setShowColorAssignment(false);
-      setGameState(GameState.PRE_GAME);
-      setChatHistory(prev => [...prev, {
-        id: Math.random().toString(36),
-        sender: 'SYSTEM',
-        text: '🔄 NEXT ROUND STARTING... PLACE YOUR BET!',
-        isAi: true,
-        timestamp: new Date()
-      }]);
-    }, 300);
+    setShowBettingModal(true);
+    setUserBetAmount(0);
+    setBetsPlaced(false);
+    setShowColorAssignment(false);
+    setGameState(GameState.PRE_GAME);
+    setWinnerAlert(null);
+    setChatHistory(prev => [...prev, {
+      id: Math.random().toString(36),
+      sender: 'SYSTEM',
+      text: '🔄 NEXT ROUND STARTING... PLACE YOUR BET!',
+      isAi: true,
+      timestamp: new Date()
+    }]);
+    setIsTransitioning(false);
   };
 
   const handleExitToLobbyFromGame = () => {
     soundManager.play('beep');
     setShowPlayAgainModal(false);
+    setIsExiting(true);
     setRoundNumber(0);
     
-    if (onLeaveGame && roomId) {
-      onLeaveGame(roomId);
-    } else {
-      navigate('/');
-    }
+    setTimeout(() => {
+      if (onLeaveGame && roomId) {
+        onLeaveGame(roomId);
+      } else {
+        navigate('/');
+      }
+    }, 100);
   };
 
   const colorWagers = useMemo(() => {
@@ -252,7 +290,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
 
   // Generate wheel segments based on game mode
   // For 1v1: alternate segments between the two players (8 each, alternating pattern)
-  // For multi-player: one segment per player
+  // For multi-player: one segment per unique color
   const wheelSegments = useMemo(() => {
     const is1v1 = roomId.includes('pve');
     
@@ -270,12 +308,22 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       return segments;
     }
     
-    // Regular multiplayer: one segment per player
-    const segments = players.map(p => ({
+    // Regular multiplayer: create segments for each unique color present in players
+    const colorMap = new Map<string, Player>();
+    players.forEach(p => {
+      // Map each color to its first player with that color
+      // This ensures each color on the wheel corresponds to at least one player
+      if (!colorMap.has(p.assignedColor)) {
+        colorMap.set(p.assignedColor, p);
+      }
+    });
+    
+    const segments = Array.from(colorMap.values()).map(p => ({
       label: p.assignedColor.substring(0, 3).toUpperCase(),
       color: p.assignedColor,
       value: players.indexOf(p)
     }));
+    
     return segments.length > 0 ? segments : WHEEL_SEGMENTS;
   }, [players, roomId]);
 
@@ -285,18 +333,37 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     // Only initialize if bets have been placed
     if (!betsPlaced) return;
 
+    // Realistic bot usernames for blitz/duel
+    const realisticNames = [
+      'Alex_Knight', 'Jordan_Smith', 'Morgan_Lee', 'Casey_Rivera', 'Taylor_Brown',
+      'Jamie_Davis', 'Riley_Garcia', 'Cameron_Wilson', 'Dakota_Martinez', 'Devon_Anderson',
+      'Blake_Thomas', 'Quinn_Jackson', 'Reese_White', 'Sam_Harris', 'Avery_Martin',
+      'Sydney_Thompson', 'Riley_Moore', 'Casey_Jackson', 'Jordan_White', 'Morgan_Harris',
+      'Phoenix_Black', 'Storm_Silver', 'Cipher_Echo', 'Titan_Force', 'Nova_Strike',
+      'Vortex_Prime', 'Shadow_Ninja', 'Thunder_King', 'Frost_Blade', 'Solar_Flare'
+    ];
+
+    // Shuffle colors to ensure randomness
+    const shuffledColors = [...COLORS].sort(() => Math.random() - 0.5);
+    
+    // For blitz/multi-player modes: take as many colors as we have players (up to available colors)
+    // For 1v1: use first 2 colors only
+    const is1v1 = gameMode === '1v1';
+    const colorsToUse = is1v1 
+      ? shuffledColors.slice(0, 2)  // Only 2 colors for 1v1
+      : shuffledColors.slice(0, Math.min(maxPlayers, shuffledColors.length));  // All available colors for multi-player
+    
     // Bots with varied ranks to show off the visual system
     const bots: Player[] = Array.from({ length: maxPlayers - 1 }, (_, i) => {
       const ranks = [UserRank.ROOKIE, UserRank.PRO, UserRank.MASTER, UserRank.LEGEND];
       const botRank = ranks[i % ranks.length];
-      // Rotate colors based on round number to avoid same colors
-      // Using offset of 4 to ensure maximum visual separation with 12 distinct colors
-      const colorIndex = (i + (roundNumber * 4)) % COLORS.length;
-      const assignedColor = COLORS[colorIndex];
+      // Assign colors cycling through only the available colors for this game mode
+      const assignedColor = colorsToUse[i % colorsToUse.length];
+      const botName = realisticNames[i % realisticNames.length];
       return {
         id: `bot-${i}`,
-        username: `${gameMode === '1v1' ? 'Opponent' : gameMode === 'tournament' ? 'GrandBot' : 'BlitzBot'}${i + 1}`,
-        avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${gameMode}bot${i}`,
+        username: botName,
+        avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${botName}`,
         betAmount: Math.floor(Math.random() * 500) + 50,
         selectedColor: assignedColor,
         assignedColor: assignedColor,
@@ -306,10 +373,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
       };
     });
 
-    // Add the current player with assigned color (also rotated by round)
-    // Using same offset of 4 to ensure no duplicate colors in same round
-    const userColorIndex = ((maxPlayers - 1) + (roundNumber * 4)) % COLORS.length;
-    const userColor = COLORS[userColorIndex];
+    // User gets a color from the available colors (at position maxPlayers-1)
+    const userColor = colorsToUse[(maxPlayers - 1) % colorsToUse.length];
     setUserAssignedColor(userColor);
     
     const userPlayer: Player = {
@@ -524,10 +589,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     if (!isMounted.current || spinResultAnnouncedRef.current) return;
     spinResultAnnouncedRef.current = true;
     
-    console.log('=== SPIN END ===');
-    console.log('targetIndex:', targetIndex);
-    console.log('wheelSegments length:', wheelSegments.length);
-    
     // Get the result from wheelSegments
     const result = wheelSegments[targetIndex];
     if (!result) {
@@ -554,7 +615,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     
     if (winner) {
       // Use the stored pot amount to ensure consistency with display
-      const payout = currentPot * 2; // Double their money (pot includes their own bet)
+      const payout = currentPot; // Winner receives the entire pot
       
       if (winner.id === user.id) {
         // User won
@@ -563,6 +624,25 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         soundManager.play('win');
         setWinnerAlert({ name: user.username, amount: currentPot, isUserWin: true });
         setLastWinner({ name: user.username, amount: currentPot, isUserWin: true });
+        
+        // Check for rank up (5 wins = 1 rank)
+        const newXp = user.rankXp + 1;
+        if (newXp % 5 === 0) {
+          // Rank up!
+          const rankProgression = [UserRank.ROOKIE, UserRank.PRO, UserRank.MASTER, UserRank.LEGEND];
+          const currentRankIndex = rankProgression.indexOf(user.rank);
+          if (currentRankIndex < rankProgression.length - 1) {
+            const newRank = rankProgression[currentRankIndex + 1];
+            setPreviousRank(user.rank);
+            setShowRankUp(true);
+            // Update user rank
+            Object.assign(user, { rank: newRank, rankXp: newXp });
+          }
+        } else {
+          // Update XP without rank up
+          Object.assign(user, { rankXp: newXp });
+        }
+        
         const hype = await generateGameCommentary(user.username, payout, players.length);
         addChatMessage('ORACLE', `🏆 WINNER: ${user.username} TAKES THE POT! ${hype}`, true);
       } else {
@@ -573,19 +653,18 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         addChatMessage('ORACLE', `🏆 WINNER: ${winner.username} TAKES THE POT!`, true);
       }
     } else {
-      console.log('No winner - no one had the winning color');
       soundManager.play('lose');
       setWinnerAlert({ name: 'NO WINNER', amount: 0, isUserWin: false });
       setLastWinner({ name: 'NO WINNER', amount: 0, isUserWin: false });
       addChatMessage('ORACLE', `❌ NO BETS ON ${result.color.toUpperCase()}! POT RETURNED!`, true);
     }
 
-    // Show play again modal instead of auto-resetting
+    // Show winner's card info first, then play again modal after 3 seconds
     setTimeout(() => {
       if (!isMounted.current) return;
       spinInProgressRef.current = false;
       setShowPlayAgainModal(true);
-    }, 2000);
+    }, 3000);
   }, [targetIndex, players, user.id, user.username, roomId, updateBalance, onWin, addChatMessage, wheelSegments, currentPot]);
 
   const handleSendMessage = async (msg: string) => {
@@ -604,7 +683,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
     
     // Try using the callback first
     if (onLeaveGame && roomId) {
-      console.log('Exiting game room:', roomId);
       try {
         onLeaveGame(roomId);
       } catch (err) {
@@ -640,10 +718,80 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         gameMode={gameMode}
       />
 
+      {/* Deposit Prompt Modal - When insufficient balance */}
+      {showDepositPrompt && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-b from-slate-900 to-black border-2 border-neon-pink rounded-sm p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(255,0,128,0.3)]">
+            <div className="text-5xl mb-4">💳</div>
+            <h3 className="text-2xl font-arcade text-neon-pink mb-2 uppercase tracking-wider">INSUFFICIENT BALANCE</h3>
+            <p className="text-slate-300 mb-6 text-sm">
+              You need <span className="text-neon-pink font-bold">${insufficientAmount}</span> more to place this bet.
+            </p>
+            <div className="bg-slate-800/50 border border-neon-pink/30 rounded p-4 mb-6">
+              <div className="text-xs text-slate-400 mb-1">Current Balance</div>
+              <div className="text-2xl font-arcade text-neon-green">${user.balance}</div>
+            </div>
+            <div className="mb-6">
+              <label className="block text-xs text-slate-400 mb-2 uppercase font-arcade">Deposit Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neon-pink font-arcade text-lg">$</span>
+                <input
+                  type="number"
+                  defaultValue={insufficientAmount}
+                  onChange={(e) => setInsufficientAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full bg-black border-2 border-neon-pink py-3 pl-8 pr-3 text-center text-neon-pink font-arcade text-xl focus:outline-none focus:shadow-[0_0_20px_rgba(255,0,128,0.4)]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowDepositPrompt(false);
+                  setShowBettingModal(true);
+                  soundManager.play('click');
+                }}
+                className="flex-1 px-4 py-3 border border-slate-500 text-slate-300 font-arcade hover:bg-slate-700 hover:border-slate-300 transition-colors uppercase text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDepositPrompt(false);
+                  setTimeout(() => setShowPaymentModal(true), 100);
+                  soundManager.play('click');
+                }}
+                className="flex-1 px-4 py-3 bg-neon-pink text-black font-arcade font-bold hover:bg-white transition-colors uppercase text-sm"
+              >
+                Deposit Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal - For deposits */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        defaultAmount={insufficientAmount}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setShowBettingModal(true);
+        }}
+        onProcess={(method: PaymentMethod, amount: number) => {
+          // Add deposited amount to user balance
+          updateBalance(amount);
+          setShowPaymentModal(false);
+          setShowBettingModal(true);
+          setInsufficientAmount(0);
+          soundManager.play('win');
+        }}
+        type="DEPOSIT"
+      />
+
       {/* Color Assignment Modal - After bet is placed */}
       <ColorAssignmentModal
         isOpen={showColorAssignment}
-        assignedColor={COLORS[(maxPlayers - 1 + roundNumber * 4) % COLORS.length]}
+        assignedColor={userAssignedColor}
         playerName={user.username}
         gameMode={gameMode}
         onConfirm={handleColorAssignmentConfirm}
@@ -666,19 +814,36 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
         <WinnerAlert name={winnerAlert.name} amount={winnerAlert.amount} isUserWin={winnerAlert.isUserWin} />
       )}
 
+      {/* Exit Overlay - Show when exiting to lobby */}
+      {isExiting && (
+        <div className="fixed inset-0 z-[300] bg-black/100 flex items-center justify-center backdrop-blur-md">
+          <div className="text-center">
+            <div className="text-4xl sm:text-5xl md:text-6xl font-arcade text-neon-cyan mb-4 animate-pulse">
+              ✕
+            </div>
+            <div className="text-lg sm:text-xl md:text-2xl font-arcade text-white uppercase tracking-widest">
+              EXITING LOBBY
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Exit Lobby Button - Compact red neon-styled button */}
-      <button 
-        onClick={handleExitToLobby}
-        className="fixed top-2 sm:top-4 left-2 sm:left-4 z-[100] px-3 sm:px-4 py-2 sm:py-2.5 font-arcade text-xs sm:text-sm font-bold tracking-widest uppercase transition-all duration-200 active:scale-95 cursor-pointer bg-red-600 border-2 border-red-400 text-white hover:bg-red-500 hover:border-red-300 hover:shadow-[0_0_20px_rgba(255,0,0,0.8)] rounded-sm"
-        style={{ pointerEvents: 'auto' }}
-      >
-        ← EXIT
-      </button>
+      {!showBettingModal && !showColorAssignment && !isTransitioning && (
+        <button 
+          onClick={handleExitToLobby}
+          className="fixed top-2 sm:top-4 left-2 sm:left-4 z-[100] px-3 sm:px-4 py-2 sm:py-2.5 font-arcade text-xs sm:text-sm font-bold tracking-widest uppercase transition-all duration-200 active:scale-95 cursor-pointer bg-red-600 border-2 border-red-400 text-white hover:bg-red-500 hover:border-red-300 hover:shadow-[0_0_20px_rgba(255,0,0,0.8)] rounded-sm"
+          style={{ pointerEvents: 'auto' }}
+        >
+          ← EXIT
+        </button>
+      )}
 
       {/* Ranked Player Sidebar - Mobile: Collapsible Drawer, Desktop: Always Visible */}
-      <div className={`fixed md:relative inset-0 md:inset-auto z-40 md:z-auto transition-all duration-300 ${sidebarOpen ? 'w-full md:w-72' : 'w-0 md:w-72'} md:h-full`}>
-        <div className={`absolute inset-0 bg-black/70 md:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
-        <div className={`absolute md:relative left-0 top-0 h-full w-64 md:w-full bg-vegas-panel border-r border-white/5 flex flex-col z-20 pt-12 sm:pt-12 md:pt-0 px-2 sm:px-3 py-3 md:p-0 max-h-full overflow-y-auto custom-scrollbar transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      {!showBettingModal && !showColorAssignment && (
+        <div className={`fixed md:relative inset-0 md:inset-auto z-40 md:z-auto transition-all duration-300 ${sidebarOpen ? 'w-full md:w-72' : 'w-0 md:w-72'} md:h-full`}>
+          <div className={`absolute inset-0 bg-black/70 md:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
+          <div className={`absolute md:relative left-0 top-0 h-full w-64 md:w-full bg-vegas-panel border-r border-white/5 flex flex-col z-20 pt-12 sm:pt-12 md:pt-0 px-2 sm:px-3 py-3 md:p-0 max-h-full overflow-y-auto custom-scrollbar transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <button 
             onClick={() => setSidebarOpen(false)}
             className="md:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl z-30"
@@ -723,18 +888,22 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
               );
             })}
           </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Mobile Players Toggle Button */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="md:hidden fixed bottom-24 right-2 z-30 w-11 h-11 bg-neon-cyan text-black rounded-full font-bold text-xl hover:bg-white transition-colors flex items-center justify-center shadow-lg active:scale-95"
-      >
-        👥
-      </button>
+      {!showBettingModal && !showColorAssignment && !isTransitioning && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden fixed bottom-24 right-2 z-30 w-11 h-11 bg-neon-cyan text-black rounded-full font-bold text-xl hover:bg-white transition-colors flex items-center justify-center shadow-lg active:scale-95"
+        >
+          👥
+        </button>
+      )}
 
-      <div className="flex-1 flex flex-col relative pt-12 sm:pt-12 md:pt-0 w-full md:flex-1 min-h-0">
+      {!showBettingModal && !showColorAssignment && !isTransitioning && (
+        <div className="flex-1 flex flex-col relative pt-12 sm:pt-12 md:pt-0 w-full md:flex-1 min-h-0">
         {/* Inactivity Warning - Overlay when needed */}
         {inactivityWarning && (
           <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
@@ -781,6 +950,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
               targetIndex={targetIndex} 
               onSpinEnd={onSpinEnd} 
               segments={wheelSegments}
+              playerColor={userAssignedColor}
             />
             
             {/* Total Pot Display - Mobile Optimized */}
@@ -908,30 +1078,35 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
           </div>
         </div>
       </div>
+      )}
 
       {/* Chat Panel - Mobile: Collapsible Drawer, Tablet+: Fixed Side Panel */}
-      <div className={`fixed sm:relative inset-0 sm:inset-auto z-40 sm:z-auto transition-all duration-300 ${chatOpen ? 'w-full sm:w-72 md:w-80' : 'w-0 sm:w-72 md:w-80'} sm:h-full`}>
-        <div className={`absolute inset-0 bg-black/70 sm:hidden transition-opacity duration-300 ${chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setChatOpen(false)}></div>
-        <div className={`absolute sm:relative left-0 top-0 h-full w-64 sm:w-full border-t sm:border-t-0 sm:border-l border-white/5 z-20 bg-black/95 flex flex-col overflow-y-auto custom-scrollbar transition-transform duration-300 sm:translate-x-0 ${chatOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}>
-          <button 
-            onClick={() => setChatOpen(false)}
-            className="sm:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl z-30"
-          >
-            ✕
-          </button>
-          <div className="mt-10 sm:mt-0">
-            <AiChat chatHistory={chatHistory} onSendMessage={handleSendMessage} />
+      {!showBettingModal && !showColorAssignment && (
+        <div className={`fixed sm:relative inset-0 sm:inset-auto z-40 sm:z-auto transition-all duration-300 ${chatOpen ? 'w-full sm:w-72 md:w-80' : 'w-0 sm:w-72 md:w-80'} sm:h-full`}>
+          <div className={`absolute inset-0 bg-black/70 sm:hidden transition-opacity duration-300 ${chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setChatOpen(false)}></div>
+          <div className={`absolute sm:relative left-0 top-0 h-full w-64 sm:w-full border-t sm:border-t-0 sm:border-l border-white/5 z-20 bg-black/95 flex flex-col overflow-y-auto custom-scrollbar transition-transform duration-300 sm:translate-x-0 ${chatOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}>
+            <button 
+              onClick={() => setChatOpen(false)}
+              className="sm:hidden absolute top-2 right-2 text-slate-400 hover:text-white text-xl z-30"
+            >
+              ✕
+            </button>
+            <div className="mt-10 sm:mt-0">
+              <AiChat chatHistory={chatHistory} onSendMessage={handleSendMessage} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Mobile Chat Toggle Button */}
-      <button
-        onClick={() => setChatOpen(true)}
-        className="sm:hidden fixed bottom-16 right-2 z-30 w-11 h-11 bg-neon-pink text-black rounded-full font-bold text-xl hover:bg-white transition-colors flex items-center justify-center shadow-lg active:scale-95"
-      >
-        💬
-      </button>
+      {!showBettingModal && !showColorAssignment && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="sm:hidden fixed bottom-16 right-2 z-30 w-11 h-11 bg-neon-pink text-black rounded-full font-bold text-xl hover:bg-white transition-colors flex items-center justify-center shadow-lg active:scale-95"
+        >
+          💬
+        </button>
+      )}
 
       {/* Kickout Modal */}
       {kickoutModal && (
@@ -955,6 +1130,9 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
           </div>
         </div>
       )}
+
+      {/* Rank Up Modal */}
+      {showRankUp && <RankUpModal newRank={user.rank} previousRank={previousRank} onClose={() => setShowRankUp(false)} />}
     </div>
   );
 };

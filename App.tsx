@@ -67,9 +67,6 @@ const Layout: React.FC<{ children: React.ReactNode; user: User; onOpenPayment?: 
             </nav>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 md:gap-6 flex-shrink-0">
-            <button onClick={toggleSound} className={`p-1.5 sm:p-2 rounded-full border transition-all text-base sm:text-lg ${isMuted ? 'border-red-500 text-red-500' : 'border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]'}`}>
-              {isMuted ? '🔇' : '🔊'}
-            </button>
             <div
               ref={balanceRef}
               role="button"
@@ -107,6 +104,21 @@ const Layout: React.FC<{ children: React.ReactNode; user: User; onOpenPayment?: 
                 </div>
               )}
             </div>
+            <button onClick={toggleSound} className={`p-1.5 sm:p-2 rounded-full border transition-all ${isMuted ? 'border-red-500 text-red-500' : 'border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.2)]'}`}>
+              {isMuted ? (
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+              )}
+            </button>
             <Link to="/dashboard" className="transition-all hover:scale-110 active:scale-95 flex-shrink-0">
               <img src={user.avatar} className={`w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full border-2 ${rankStyle.borderColor} shadow-[0_0_10px_rgba(255,255,255,0.1)]`} alt="Profile" />
             </Link>

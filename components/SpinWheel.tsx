@@ -9,15 +9,56 @@ interface SpinWheelProps {
   onSpinEnd: () => void;
   segments: { label: string; color: string; value: number }[];
   themeColor?: string;
+  playerColor?: string;
 }
 
-const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd, segments, themeColor = 'neon-gold' }) => {
+const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd, segments, themeColor = 'neon-gold', playerColor = '' }) => {
   const wheelGroupRef = useRef<SVGGElement>(null);
   const [currentRotation, setCurrentRotation] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const spinInProgressRef = useRef(false);
   
   const sliceAngle = useMemo(() => 360 / (segments.length || 1), [segments.length]);
+
+  // Add CSS animations for player color pulsing
+  useEffect(() => {
+    const styleId = 'player-color-pulse';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes playerPulse {
+          0%, 100% {
+            stroke-width: 8px;
+            opacity: 1;
+            filter: drop-shadow(0 0 15px currentColor) brightness(1);
+          }
+          50% {
+            stroke-width: 14px;
+            opacity: 1;
+            filter: drop-shadow(0 0 40px currentColor) brightness(1.6);
+          }
+        }
+        .player-color-pulse {
+          animation: playerPulse 1.5s ease-in-out infinite !important;
+        }
+        .player-segment-pulse {
+          animation: playerSegmentPulse 1.5s ease-in-out infinite !important;
+        }
+        @keyframes playerSegmentPulse {
+          0%, 100% {
+            opacity: 0.95;
+            filter: brightness(1);
+          }
+          50% {
+            opacity: 1;
+            filter: brightness(1.4);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
 
   const colorMap: Record<string, string> = {
     'neon-cyan': '#00ffff',
@@ -39,15 +80,57 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
     const arc = d3.arc<any>().innerRadius(45).outerRadius(radius);
     const arcs = g.selectAll("g").data(pie(segments)).enter().append("g");
 
+    // Add glow filter
+    if (!g.select("defs").node()) {
+      g.append("defs");
+    }
+    const defs = g.select("defs");
+    const filter = defs.append("filter")
+      .attr("id", "glow")
+      .attr("x", "-50%")
+      .attr("y", "-50%")
+      .attr("width", "200%")
+      .attr("height", "200%");
+    
+    filter.append("feGaussianBlur")
+      .attr("stdDeviation", "6")
+      .attr("result", "coloredBlur");
+    
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode").attr("in", "coloredBlur");
+    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
     arcs.append("path")
       .attr("d", arc)
       .attr("fill", (d) => {
         const hexColor = COLOR_HEX[d.data.color as keyof typeof COLOR_HEX];
         return hexColor ? hexColor + 'FF' : '#ffffffff'; // Full brightness, no opacity
       })
-      .attr("stroke", themeHex)
-      .attr("stroke-width", "2")
-      .attr("stroke-opacity", "1");
+      .attr("stroke", (d) => {
+        // Bright glow for player's color
+        if (playerColor && d.data.color === playerColor) {
+          const hexColor = COLOR_HEX[d.data.color as keyof typeof COLOR_HEX];
+          return hexColor || '#ffffff';
+        }
+        return themeHex;
+      })
+      .attr("stroke-width", (d) => {
+        // Thicker stroke for player's color
+        return playerColor && d.data.color === playerColor ? "8" : "2";
+      })
+      .attr("stroke-opacity", "1")
+      .attr("filter", (d) => {
+        // Apply glow to player's segment
+        return playerColor && d.data.color === playerColor ? "url(#glow)" : "none";
+      })
+      .attr("opacity", (d) => {
+        // Make other segments slightly dimmer to make player color stand out
+        return playerColor && d.data.color === playerColor ? "1" : "0.9";
+      })
+      .attr("class", (d) => {
+        // Add pulsing animation for player's color - both stroke and fill
+        return playerColor && d.data.color === playerColor ? "player-color-pulse player-segment-pulse" : "";
+      });
 
     arcs.append("text")
       .attr("transform", d => {
@@ -61,7 +144,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ spinning, targetIndex, onSpinEnd,
       .attr("font-weight", "900")
       .attr("font-family", "Orbitron")
       .text(d => d.data.label);
-  }, [segments, themeHex]);
+  }, [segments, themeHex, playerColor]);
 
   useEffect(() => {
     // BULLETPROOF: NO DOUBLE SPIN EVER

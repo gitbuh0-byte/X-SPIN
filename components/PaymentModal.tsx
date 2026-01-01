@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PAYMENT_METHODS } from '../constants.ts';
 import { PaymentMethod } from '../types.ts';
 import { soundManager } from '../services/soundManager.ts';
@@ -9,12 +9,20 @@ interface PaymentModalProps {
   onProcess: (method: PaymentMethod, amount: number) => void;
   type: 'DEPOSIT' | 'WITHDRAWAL';
   userPhoneNumber?: string;
+  defaultAmount?: number;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess, type, userPhoneNumber }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onProcess, type, userPhoneNumber, defaultAmount }) => {
   const [amount, setAmount] = useState<string>('50');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [processing, setProcessing] = useState(false);
+
+  // Update amount when modal opens with a default
+  useEffect(() => {
+    if (isOpen && defaultAmount) {
+      setAmount(defaultAmount.toString());
+    }
+  }, [isOpen, defaultAmount]);
 
   if (!isOpen) return null;
 

@@ -2,7 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SpinWheel from '../components/SpinWheel.tsx';
 import TournamentWinnerAnimation from '../components/TournamentWinnerAnimation.tsx';
-import { User, Player } from '../types.ts';
+import TournamentBracket from '../components/TournamentBracket.tsx';
+import RankUpModal from '../components/RankUpModal.tsx';
+import { User, Player, UserRank } from '../types.ts';
 import { COLORS, COLOR_HEX } from '../constants.ts';
 import { soundManager } from '../services/soundManager.ts';
 
@@ -28,8 +30,8 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const navigate = useNavigate();
   const mounted = useRef(true);
 
-  // Phase: BROWSE -> BET_PROMPT -> COLOR_ASSIGN -> ROOM_ASSIGN -> LOBBY -> GROUPS -> [WINNER_COUNTDOWN -> FINAL_COLOR -> FINAL_SPIN_COUNTDOWN] -> FINAL -> FINAL_RESULT -> PLAY_AGAIN
-  const [phase, setPhase] = useState<'BROWSE' | 'BET_PROMPT' | 'COLOR_ASSIGN' | 'ROOM_ASSIGN' | 'LOBBY' | 'GROUPS' | 'WINNER_COUNTDOWN' | 'FINAL_COLOR' | 'FINAL_SPIN_COUNTDOWN' | 'FINAL' | 'FINAL_RESULT' | 'PLAY_AGAIN' | 'ELIM_LOSE'>('BROWSE');
+  // Phase: BROWSE -> BET_PROMPT -> COLOR_ASSIGN -> ROOM_ASSIGN -> BRACKET_VIEW -> GROUPS -> [WINNER_COUNTDOWN -> FINAL_COLOR -> FINAL_SPIN_COUNTDOWN] -> FINAL -> FINAL_RESULT -> PLAY_AGAIN
+  const [phase, setPhase] = useState<'BROWSE' | 'BET_PROMPT' | 'COLOR_ASSIGN' | 'ROOM_ASSIGN' | 'BRACKET_VIEW' | 'GROUPS' | 'WINNER_COUNTDOWN' | 'FINAL_COLOR' | 'FINAL_SPIN_COUNTDOWN' | 'FINAL' | 'FINAL_RESULT' | 'PLAY_AGAIN' | 'ELIM_LOSE'>('BROWSE');
   
   // Tournament data
   const [groups, setGroups] = useState<Array<{ groupNumber: number; players: Player[]; totalPot: number }>>([]);
@@ -57,6 +59,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const [finalSpinning, setFinalSpinning] = useState(false);
   const [grandWinner, setGrandWinner] = useState<Player | null>(null);
   
+  // Bracket view countdown
+  const [bracketCountdown, setBracketCountdown] = useState(10);
+  
   // UI state
   const [expandedGroup, setExpandedGroup] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ user: string; msg: string }>>([]);
@@ -65,6 +70,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
 
+  // Rank-up state
+  const [showRankUp, setShowRankUp] = useState(false);
+  const [previousRank, setPreviousRank] = useState<UserRank>(user.rank);
   
   // Calculate total pot (100 players * entry fee)
   const totalPot = TOTAL_PLAYERS * ENTRY_FEE;
@@ -73,7 +81,8 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   useEffect(() => {
     if (groups.length === 0 && mounted.current) {
       const assignedGroup = Math.floor(Math.random() * GROUPS_COUNT) + 1;
-      const assignedColor = COLORS[assignedGroup - 1]; // One color per group
+      const assignedPositionInGroup = Math.floor(Math.random() * PLAYERS_PER_GROUP);
+      const assignedColor = COLORS[assignedPositionInGroup % COLORS.length];
       const assignedRoom = `ROOM-${Math.floor(Math.random() * 1000).toString().padStart(4, '0')}`;
       
       setUserGroup(assignedGroup);
@@ -83,7 +92,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
       const newGroups = Array.from({ length: GROUPS_COUNT }).map((_, gi) => {
         const groupNumber = gi + 1;
         const players: Player[] = Array.from({ length: PLAYERS_PER_GROUP }).map((__, pi) => {
-          if (groupNumber === assignedGroup && pi === PLAYERS_PER_GROUP - 1) {
+          if (groupNumber === assignedGroup && pi === assignedPositionInGroup) {
             return {
               id: user.id,
               username: user.username,
@@ -98,13 +107,16 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
           const randomNames = ['NeonGhost', 'CyberVortex', 'PixelKing', 'ShadowEcho', 'VortexRider', 'ThunderStrike', 'NovaBlast', 'SilentRunner', 'IceReaper', 'PhantomEye', 'CrimsonFury', 'VoidWalker', 'TitanForce', 'SolarFlare', 'DarkNinja', 'ElectroMage', 'MysticShade', 'FrostByte', 'LunarEclipse', 'InfernoKnight'];
           const botName = randomNames[Math.floor(Math.random() * randomNames.length)] + Math.floor(Math.random() * 999);
+          // Assign one color per player (pi=0 gets COLORS[0], pi=1 gets COLORS[1], etc.)
+          // This ensures each group has exactly one player of each color
+          const playerColor = COLORS[pi % COLORS.length];
           return {
             id: `bot-${groupNumber}-${pi}`,
             username: botName,
             avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${botName}`,
             betAmount: ENTRY_FEE,
-            selectedColor: COLORS[groupNumber - 1],
-            assignedColor: COLORS[groupNumber - 1],
+            selectedColor: playerColor,
+            assignedColor: playerColor,
             status: 'CONFIRMED' as any,
             isBot: true
           } as Player;
@@ -163,12 +175,13 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
   const joinGameroom = () => {
     updateBalance(-ENTRY_FEE);
-    setPhase('LOBBY');
+    setBracketCountdown(10);
+    setPhase('BRACKET_VIEW');
     setTimeout(() => {
       setPhase('GROUPS');
       setCountdown(3);
       setCountdownActive(true);
-    }, 1500);
+    }, 10500);
   };
 
   const startGroupSpin = () => {
@@ -180,13 +193,21 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   };
 
   const onGroupSpinEnd = () => {
-    // After the single global spin completes, select one winner per group (announcement later)
+    // Only players whose assigned color matches the winning wheel color advance
     setSpinning(false);
-    // pick random winner per group (first spin does not award pot)
+    
+    const winningColor = TOURNAMENT_SEGMENTS[targetIndex].color;
+    
+    // For each group, select a player only if their color matches the winning color
     const winners = groups.map((g) => {
-      const pick = g.players[Math.floor(Math.random() * g.players.length)];
-      return pick;
-    });
+      const playersWithWinningColor = g.players.filter(p => p.assignedColor === winningColor);
+      if (playersWithWinningColor.length > 0) {
+        // Pick one random player from this group with the winning color
+        return playersWithWinningColor[Math.floor(Math.random() * playersWithWinningColor.length)];
+      }
+      // No one in this group has the winning color - no winner from this group
+      return null as any;
+    }).filter(w => w !== null);
 
     setGroupWinners(winners);
     setDisplayedWinners(winners);
@@ -210,7 +231,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     if (loserCountdown <= 0) {
       setAnnouncing(false);
       setLoserCountdown(null);
-      setPhase('ELIM_LOSE');
+      setPhase('GROUP_RESULT');
       return;
     }
     const t = setTimeout(() => setLoserCountdown(c => (c !== null ? c - 1 : null)), 1000);
@@ -245,6 +266,38 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     return () => clearTimeout(t);
   }, [finalColorCountdown]);
 
+  // Bracket view countdown
+  useEffect(() => {
+    if (phase !== 'BRACKET_VIEW') return;
+    if (bracketCountdown <= 0) return;
+    const timer = setTimeout(() => setBracketCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [bracketCountdown, phase]);
+
+  // Auto-advance winners from GROUP_RESULT
+  useEffect(() => {
+    if (phase !== 'GROUP_RESULT') return;
+    const userIsWinner = groupWinners.some(w => w.id === user.id);
+    
+    // Winners auto-advance after 3 seconds
+    if (userIsWinner) {
+      const timer = setTimeout(() => {
+        setAnnouncing(false);
+        const reassigned = groupWinners.map((w, idx) => ({ ...w, assignedColor: COLORS[idx % COLORS.length] }));
+        setGroupWinners(reassigned);
+        setPhase('FINAL_COLOR');
+        setFinalColorCountdown(5);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      // Losers auto-advance after 4 seconds to ELIM_LOSE
+      const timer = setTimeout(() => {
+        setPhase('ELIM_LOSE');
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [phase, groupWinners]);
+
   const startFinalSpin = () => {
     if (groupWinners.length === 0) return;
     
@@ -270,6 +323,24 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     if (winner.id === user.id) {
       updateBalance(totalPot);
       soundManager.play('win'); // Winner announcement sound (same as group winners)
+      
+      // Check for rank up (5 wins = 1 rank)
+      const newXp = user.rankXp + 1;
+      if (newXp % 5 === 0) {
+        // Rank up!
+        const rankProgression = [UserRank.ROOKIE, UserRank.PRO, UserRank.MASTER, UserRank.LEGEND];
+        const currentRankIndex = rankProgression.indexOf(user.rank);
+        if (currentRankIndex < rankProgression.length - 1) {
+          const newRank = rankProgression[currentRankIndex + 1];
+          setPreviousRank(user.rank);
+          setShowRankUp(true);
+          // Update user rank (this would normally be saved to backend)
+          Object.assign(user, { rank: newRank, rankXp: newXp });
+        }
+      } else {
+        // Update XP without rank up
+        Object.assign(user, { rankXp: newXp });
+      }
     }
     setPhase('FINAL_RESULT');
   };
@@ -312,6 +383,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   targetIndex={targetIndex}
                   onSpinEnd={onGroupSpinEnd}
                   themeColor="neon-cyan"
+                  playerColor={userColor}
                 />
               </div>
             ))}
@@ -329,6 +401,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               targetIndex={finalTarget}
               onSpinEnd={onFinalSpinEnd}
               themeColor="neon-gold"
+              playerColor={userColor}
             />
           </div>
         </div>
@@ -340,17 +413,17 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           <div className="grid grid-cols-3 gap-2 w-full">
             <button 
               onClick={() => { soundManager.play('click'); setShowGroupsPanel(true); }}
-              className="px-4 py-3 bg-gradient-to-b from-neon-cyan to-cyan-600 text-black font-arcade text-sm rounded border-2 border-neon-cyan hover:from-white hover:to-cyan-300 transition font-black tracking-wider shadow-[0_0_15px_rgba(0,255,255,0.5)] active:scale-95">
+              className="px-4 py-3 text-neon-cyan font-arcade text-sm border-2 border-neon-cyan hover:bg-neon-cyan hover:text-black transition font-black tracking-wider shadow-[0_0_15px_rgba(0,255,255,0.5)] active:scale-95">
               FINALISTS
             </button>
             <button 
               onClick={() => { soundManager.play('click'); setShowStatusPanel(true); }}
-              className="px-4 py-3 bg-gradient-to-b from-neon-pink to-pink-600 text-black font-arcade text-sm rounded border-2 border-neon-pink hover:from-white hover:to-pink-300 transition font-black tracking-wider shadow-[0_0_15px_rgba(255,0,128,0.5)] active:scale-95">
+              className="px-4 py-3 text-neon-pink font-arcade text-sm border border-neon-pink hover:bg-neon-pink hover:text-black transition font-black tracking-wider shadow-[0_0_15px_rgba(255,0,128,0.5)] active:scale-95">
               STATUS
             </button>
             <button 
               onClick={() => { soundManager.play('click'); setShowChatPanel(true); }}
-              className="px-4 py-3 bg-gradient-to-b from-neon-green to-green-600 text-black font-arcade text-sm rounded border-2 border-neon-green hover:from-white hover:to-green-300 transition font-black tracking-wider shadow-[0_0_15px_rgba(0,255,0,0.5)] active:scale-95">
+              className="px-4 py-3 text-neon-green font-arcade text-sm border border-neon-green hover:bg-neon-green hover:text-black transition font-black tracking-wider shadow-[0_0_15px_rgba(0,255,0,0.5)] active:scale-95">
               CHATS
             </button>
           </div>
@@ -361,10 +434,10 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* Trophy announcement removed */}
 
-      {/* Show custom tournament winner animation when winners are announced */}
-      {announcing && displayedWinners.length > 0 && phase === 'GROUPS' && (
+      {/* Show custom tournament winner animation when winners are announced (during GROUP_RESULT for winners) */}
+      {announcing && displayedWinners.length > 0 && phase === 'GROUP_RESULT' && displayedWinners.some(dw => dw.id === user.id) && (
         <TournamentWinnerAnimation
-          isUserWinner={displayedWinners.some(dw => dw.id === user.id)}
+          isUserWinner={true}
           winnerCount={displayedWinners.length}
         />
       )}
@@ -386,20 +459,20 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
             </div>
             
             {/* Finalists Grid - Clear and Visible */}
-            <div className="max-w-2xl bg-black/60 border-2 border-neon-gold/50 rounded-lg p-4 sm:p-6 shadow-[0_0_40px_rgba(255,215,0,0.3)]">
-              <div className="text-sm sm:text-base font-arcade text-neon-gold mb-3">TOP 10 WINNERS</div>
+            <div className="max-w-2xl bg-black/60 border border-neon-pink/50 p-4 sm:p-6 shadow-[0_0_40px_rgba(255,0,128,0.3)]">
+              <div className="text-sm sm:text-base font-arcade text-neon-pink mb-3">TOP 10 WINNERS</div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {displayedWinners.map((w, idx) => (
                   <div 
                     key={w.id}
-                    className={`p-2 rounded border transition ${
+                    className={`p-2 border transition ${
                       w.id === user.id 
-                        ? 'bg-neon-gold/20 border-neon-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' 
-                        : 'bg-black/40 border-neon-cyan/30 hover:border-neon-cyan'
+                        ? 'bg-neon-pink/20 border-neon-pink shadow-[0_0_20px_rgba(255,0,128,0.4)]' 
+                        : 'bg-black/40 border-neon-pink/30 hover:border-neon-pink'
                     }`}
                   >
-                    <img src={w.avatar} alt={w.username} className="w-8 h-8 rounded-full mx-auto mb-1 border border-neon-gold/50" />
-                    <div className="text-[10px] font-arcade text-neon-cyan truncate">{w.username.substring(0, 8)}</div>
+                    <img src={w.avatar} alt={w.username} className="w-8 h-8 rounded-full mx-auto mb-1 border border-neon-pink/50" />
+                    <div className="text-[10px] font-arcade text-neon-pink truncate">{w.username.substring(0, 8)}</div>
                   </div>
                 ))}
               </div>
@@ -411,9 +484,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
       {/* Show winner proceed button when countdown ends */}
       {showWinnerProceed && phase === 'GROUPS' && (
         <div className="fixed inset-0 z-[350] pointer-events-auto flex items-center justify-center p-4">
-          <div className="bg-black/90 border-2 border-neon-cyan rounded-lg p-6 sm:p-8 text-center max-w-sm w-full">
+          <div className="bg-black/90 border border-neon-pink p-6 sm:p-8 text-center max-w-sm w-full">
             <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🎊</div>
-            <div className="text-xl sm:text-2xl font-arcade text-neon-gold mb-2">YOU'RE IN!</div>
+            <div className="text-xl sm:text-2xl font-arcade text-neon-pink mb-2">YOU'RE IN!</div>
             <div className="text-xs sm:text-sm text-slate-300 mb-4 sm:mb-6">You've advanced to the final round with 9 other winners.</div>
             <button
               onClick={() => {
@@ -424,7 +497,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                 setPhase('FINAL_COLOR');
                 setFinalColorCountdown(5);
               }}
-              className="px-6 sm:px-8 py-2 sm:py-3 bg-neon-cyan text-black font-arcade text-base sm:text-lg rounded hover:scale-105 transition w-full"
+              className="px-6 sm:px-8 py-2 sm:py-3 text-neon-pink font-arcade text-base sm:text-lg hover:bg-neon-pink hover:text-black transition w-full border border-neon-pink"
             >
               Proceed to Final
             </button>
@@ -445,11 +518,11 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="text-center w-full max-w-md">
               <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">🎰</div>
-              <div className="text-4xl sm:text-5xl font-arcade text-neon-gold mb-2 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)] animate-pulse">GRAND PRIX</div>
+              <div className="text-4xl sm:text-5xl font-arcade text-neon-pink mb-2 drop-shadow-[0_0_10px_rgba(255,0,128,0.8)] animate-pulse">GRAND PRIX</div>
               <div className="text-neon-cyan text-base sm:text-lg mb-4 sm:mb-6 font-arcade tracking-wider drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">100 Players • 10 Groups • Winner Takes All</div>
-              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-cyan/10 border-2 border-neon-gold rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 shadow-[0_0_20px_rgba(255,215,0,0.3)]">
+              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-pink/5 border border-neon-pink p-4 sm:p-6 mb-6 sm:mb-8 shadow-[0_0_20px_rgba(255,0,128,0.3)]">
                 <div className="text-xs sm:text-sm text-neon-cyan space-y-2 font-arcade tracking-wider">
-                  <div className="text-neon-gold">✓ 10 groups of 10 players</div>
+                  <div className="text-neon-pink">✓ 10 groups of 10 players</div>
                   <div className="text-neon-green">✓ Win your group → Join Final Round</div>
                   <div className="text-neon-pink">✓ Grand Champion wins ${totalPot.toLocaleString()}</div>
                 </div>
@@ -457,13 +530,13 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => { soundManager.play('click'); window.location.hash = '/#/dashboard'; }}
-                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border-2 border-neon-pink text-neon-pink font-arcade text-sm sm:text-base rounded-lg hover:bg-neon-pink hover:text-black transition-all shadow-lg"
+                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border border-neon-pink text-neon-pink font-arcade text-sm sm:text-base hover:bg-neon-pink hover:text-black transition-all shadow-lg"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); startBetFlow(); }}
-                  className="flex-1 px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-b from-neon-green to-green-500 text-black font-arcade text-sm sm:text-base rounded-lg hover:from-white hover:to-neon-green transition-all font-black shadow-[0_0_20px_rgba(0,255,0,0.5)] hover:shadow-[0_0_30px_rgba(0,255,0,0.8)]"
+                  className="flex-1 px-6 sm:px-8 py-2.5 sm:py-3 text-neon-green font-arcade text-sm sm:text-base hover:bg-neon-green hover:text-black transition-all font-black shadow-[0_0_20px_rgba(0,255,0,0.5)] hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] border border-neon-green"
                 >
                   JOIN TOURNAMENT
                 </button>
@@ -477,10 +550,10 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="text-center max-w-sm w-full">
               <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">💰</div>
-              <div className="text-2xl sm:text-3xl font-arcade text-neon-gold mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">Place Your Bet</div>
-              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-cyan/10 border-2 border-neon-gold rounded-lg p-4 sm:p-6 mb-4 sm:mb-6 shadow-[0_0_20px_rgba(255,215,0,0.3)]">
-                <div className="text-neon-gold mb-2 text-sm font-arcade tracking-wider uppercase">Entry Fee</div>
-                <div className="text-4xl sm:text-5xl font-arcade text-neon-cyan mb-4 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]"><span className="text-neon-gold">$</span>{ENTRY_FEE}</div>
+              <div className="text-2xl sm:text-3xl font-arcade text-neon-pink mb-4 drop-shadow-[0_0_10px_rgba(255,0,128,0.8)]">Place Your Bet</div>
+              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-pink/5 border border-neon-pink p-4 sm:p-6 mb-4 sm:mb-6 shadow-[0_0_20px_rgba(255,0,128,0.3)]">
+                <div className="text-neon-pink mb-2 text-sm font-arcade tracking-wider uppercase">Entry Fee</div>
+                <div className="text-4xl sm:text-5xl font-arcade text-neon-cyan mb-4 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]"><span className="text-neon-pink">$</span>{ENTRY_FEE}</div>
                 <div className="text-xs text-neon-pink mb-2 font-arcade">
                   Current Balance: <span className="text-neon-green drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]">${user.balance}</span>
                 </div>
@@ -488,17 +561,17 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               <div className="flex gap-2 sm:gap-3 justify-center">
                 <button
                   onClick={() => { soundManager.play('click'); setPhase('BROWSE'); }}
-                  className="px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-pink bg-neon-pink text-black hover:bg-white rounded shadow-lg whitespace-nowrap font-black"
+                  className="px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black shadow-lg whitespace-nowrap font-black"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); confirmBet(); }}
                   disabled={user.balance < ENTRY_FEE}
-                  className={`px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 rounded shadow-lg font-black whitespace-nowrap ${
+                  className={`px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 shadow-lg font-black whitespace-nowrap ${
                     user.balance < ENTRY_FEE
-                      ? 'border-slate-600 bg-slate-600 text-slate-400 cursor-not-allowed'
-                      : 'border-neon-green bg-neon-green text-black hover:bg-white shadow-[0_0_15px_rgba(0,255,0,0.6)]'
+                      ? 'border-slate-600 text-slate-600 cursor-not-allowed'
+                      : 'border-neon-green text-neon-green hover:bg-neon-green hover:text-black shadow-[0_0_15px_rgba(0,255,0,0.6)]'
                   }`}
                 >
                   CONFIRM
@@ -513,24 +586,24 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="text-center max-w-sm w-full">
               <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🎨</div>
-              <div className="text-xl sm:text-2xl font-arcade text-neon-gold mb-4 sm:mb-6">Color Assigned</div>
-              <div className="bg-slate-800/50 border border-neon-cyan/30 rounded p-4 sm:p-8 mb-4 sm:mb-6">
+              <div className="text-xl sm:text-2xl font-arcade text-neon-pink mb-4 sm:mb-6">Color Assigned</div>
+              <div className="bg-slate-800/50 border border-neon-pink/30 p-4 sm:p-8 mb-4 sm:mb-6">
                 <div className="text-slate-400 mb-4 text-sm">Your Tournament Color</div>
                 <div className="flex justify-center gap-4 items-center mb-4 sm:mb-6">
                   <div
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 border-white shadow-lg"
+                    className="w-14 h-14 sm:w-16 sm:h-16 border-2 border-white shadow-lg"
                     style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
                   />
                   <div className="text-2xl sm:text-3xl font-arcade capitalize">{userColor}</div>
                 </div>
-                <div className="text-[10px] sm:text-xs text-slate-400 bg-neon-green/20 border border-neon-green/30 rounded p-3">
+                <div className="text-[10px] sm:text-xs text-slate-400 bg-neon-green/20 border border-neon-green/30 p-3">
                   <div className="text-neon-green font-arcade mb-1">✓ Bet Locked: ${ENTRY_FEE}</div>
                   Your color is fixed for this tournament
                 </div>
               </div>
               <button
                 onClick={() => { soundManager.play('click'); proceedFromColor(); }}
-                className="w-full px-6 sm:px-8 py-3 sm:py-4 bg-neon-cyan text-black font-arcade text-lg sm:text-xl font-bold rounded hover:scale-105 transition shadow-lg"
+                className="w-full px-6 sm:px-8 py-3 sm:py-4 text-neon-pink font-arcade text-lg sm:text-xl font-bold hover:bg-neon-pink hover:text-black transition shadow-lg border border-neon-pink"
               >
                 Proceed
               </button>
@@ -543,8 +616,8 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center max-w-sm">
               <div className="text-5xl mb-4">🚪</div>
-              <div className="text-2xl font-arcade text-neon-gold mb-6">Room Assigned</div>
-              <div className="bg-slate-800/50 border border-neon-cyan/30 rounded p-8 mb-6">
+              <div className="text-2xl font-arcade text-neon-pink mb-6">Room Assigned</div>
+              <div className="bg-slate-800/50 border border-neon-pink/30 p-8 mb-6">
                 <div className="mb-6">
                   <div className="text-slate-400 mb-2">Your Group</div>
                   <div className="text-4xl font-arcade text-neon-cyan mb-4">GROUP {userGroup}</div>
@@ -553,17 +626,28 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   <div className="text-slate-400 mb-2">Room Number</div>
                   <div className="text-3xl font-arcade text-neon-pink font-bold tracking-widest">{userRoom}</div>
                 </div>
-                <div className="text-xs text-slate-400 bg-slate-700/50 rounded p-3">
+                <div className="text-xs text-slate-400 p-3">
                   Waiting for other players...
                 </div>
               </div>
               <button
                 onClick={() => { soundManager.play('click'); joinGameroom(); }}
-                className="w-full px-6 py-3 bg-neon-pink text-black font-arcade text-lg rounded hover:scale-105 transition font-bold"
+                className="w-full px-6 py-3 text-neon-pink font-arcade text-lg hover:bg-neon-pink hover:text-black transition font-bold border border-neon-pink"
               >
                 Join Gameroom
               </button>
             </div>
+          </div>
+        )}
+
+        {/* BRACKET_VIEW - Tournament Bracket with Countdown */}
+        {phase === 'BRACKET_VIEW' && (
+          <div className="flex-1 flex items-center justify-center bg-black/40">
+            <TournamentBracket 
+              countdown={bracketCountdown} 
+              groupNumber={userGroup}
+              playersInGroup={PLAYERS_PER_GROUP}
+            />
           </div>
         )}
 
@@ -634,22 +718,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <div className="text-2xl font-arcade text-neon-pink animate-pulse">{countdown}</div>
                   </div>
                 )}
-                {announcing && (
-                  <div className="w-full flex items-center justify-center">
-                    <div className="bg-black/80 border border-neon-cyan/30 rounded p-1 max-w-xs w-full text-center">
-                      <div className="text-[6px] text-slate-400 mb-0.5">Winners...</div>
-                      <div className="flex gap-0.5 justify-center flex-wrap">
-                        {displayedWinners.slice(0, 5).map((w, idx) => (
-                          <div key={w.id} className="text-[6px] font-arcade text-neon-gold bg-black/60 px-0.5 rounded">
-                            G{idx + 1}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                
                 {spinning && (
-                  <div className="text-[7px] text-slate-400">Spinning...</div>
+                  <div className="text-[9px] sm:text-xs text-neon-cyan font-arcade font-bold animate-pulse">Spinning... Group {currentGroupIndex + 1}/10</div>
                 )}
               </div>
 
@@ -662,19 +733,19 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               <div className="w-full flex gap-2 sm:gap-3 justify-center flex-shrink-0">
                 <button
                   onClick={() => { soundManager.play('click'); setShowGroupsPanel(true); }}
-                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-cyan bg-neon-cyan text-black hover:bg-white rounded shadow-lg whitespace-nowrap font-black"
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-cyan text-neon-cyan hover:bg-neon-cyan hover:text-black whitespace-nowrap font-black"
                 >
                   GROUPS
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); setShowStatusPanel(true); }}
-                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-pink bg-neon-pink text-black hover:bg-white rounded shadow-lg whitespace-nowrap font-black"
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black whitespace-nowrap font-black"
                 >
                   STATUS
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); setShowChatPanel(true); }}
-                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-green bg-neon-green text-black hover:bg-white rounded shadow-lg whitespace-nowrap font-black"
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-green text-neon-green hover:bg-neon-green hover:text-black whitespace-nowrap font-black"
                 >
                   CHATS
                 </button>
@@ -689,23 +760,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   <div className="text-xs sm:text-sm text-slate-400 mt-2">Preparing to spin...</div>
                 </div>
               )}
-              {announcing && (
-                <div className="mb-2 sm:mb-4 w-full flex items-center justify-center">
-                  <div className="bg-black/80 border border-neon-cyan/30 rounded p-2 sm:p-3 max-w-xl w-full text-center">
-                    <div className="text-xs sm:text-sm text-slate-400 mb-2">Announcing winners...</div>
-                    <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
-                      {displayedWinners.map((w, idx) => (
-                        <div key={w.id} className="text-[10px] sm:text-xs font-arcade text-neon-gold bg-black/60 px-2 py-1 rounded">
-                          G{idx + 1}: {w.username}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
+              
               {spinning && (
-                <div className="text-xs sm:text-sm text-slate-400 mb-2">Spinning... Group {currentGroupIndex + 1}</div>
+                <div className="text-sm sm:text-lg font-arcade text-neon-cyan mb-4 animate-pulse">Spinning... Group {currentGroupIndex + 1}/10</div>
               )}
 
               {/* Responsive Wheel Container */}
@@ -777,7 +834,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         setChatInput('');
                       }
                     }}
-                    className="bg-neon-pink/30 text-neon-pink text-xs px-2 py-1 rounded hover:bg-neon-pink/50"
+                    className="border border-neon-pink text-neon-pink text-xs px-2 py-1 hover:bg-neon-pink hover:text-black"
                   >
                     ✓
                   </button>
@@ -943,7 +1000,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                           setChatInput('');
                         }
                       }}
-                      className="bg-neon-green text-black px-2.5 py-1.5 rounded hover:bg-white text-xs font-bold transition"
+                      className="border border-neon-green text-neon-green px-2.5 py-1.5 hover:bg-neon-green hover:text-black text-xs font-bold transition"
                     >
                       ✓
                     </button>
@@ -954,33 +1011,75 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           </div>
         )}
 
-        {/* GROUP_RESULT - Winner Announcement */}
+        {/* GROUP_RESULT - Tournament Flow Visualization */}
         {phase === 'GROUP_RESULT' && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-md">
-              <div className="text-5xl mb-4">
-                {groupWinners[groupWinners.length - 1]?.id === user.id ? '🎉' : '⭐'}
-              </div>
-              <div className="text-2xl font-arcade text-neon-gold mb-4">
-                Group {groupWinners.length} Winner!
-              </div>
-              <div className="bg-slate-800/50 border border-neon-cyan/30 rounded p-6 mb-6">
-                <img
-                  src={groupWinners[groupWinners.length - 1]?.avatar}
-                  alt="winner"
-                  className="w-16 h-16 rounded-full mx-auto mb-4"
-                />
-                <div className="font-arcade text-lg text-neon-cyan mb-2">
-                  {groupWinners[groupWinners.length - 1]?.username}
+          <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="w-full max-w-4xl">
+              {/* Tournament Flow Diagram */}
+              <div className="space-y-6">
+                {/* Stage 2: Group Winners */}
+                <div className="bg-gradient-to-b from-slate-800/40 to-black/40 border border-neon-gold/50 rounded-lg p-6">
+                  <div className="text-sm font-arcade text-slate-400 mb-4 uppercase tracking-wider">Stage 2: 10 Winners Selected</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+                    {groupWinners.map((winner, idx) => (
+                      <div 
+                        key={winner.id} 
+                        className={`rounded-lg p-3 transition ${
+                          winner.id === user.id 
+                            ? 'bg-gradient-to-b from-neon-gold/30 to-neon-cyan/30 border-2 border-neon-gold' 
+                            : 'bg-black/60 border border-slate-600'
+                        }`}
+                      >
+                        <img src={winner.avatar} alt={winner.username} className="w-10 h-10 rounded-full mx-auto mb-2" />
+                        <div className={`text-[10px] font-arcade truncate ${winner.id === user.id ? 'text-neon-gold' : 'text-slate-400'}`}>
+                          {winner.username.substring(0, 10)}
+                        </div>
+                        {winner.id === user.id && <div className="text-[9px] text-neon-green mt-1">✓ YOU</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {groupWinners.some(w => w.id === user.id) ? (
+                    <div className="bg-neon-gold/10 border border-neon-gold/30 rounded px-4 py-3 text-center">
+                      <div className="text-neon-gold font-arcade text-sm mb-1">🎉 YOU ADVANCED!</div>
+                      <div className="text-xs text-slate-400">Proceed to Final Spin</div>
+                    </div>
+                  ) : (
+                    <div className="bg-red-950/20 border border-red-700/30 rounded px-4 py-3 text-center">
+                      <div className="text-red-400 font-arcade text-sm mb-1">❌ ELIMINATED</div>
+                      <div className="text-xs text-slate-400">You didn't win your group</div>
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm text-slate-400">
-                  Group Pot: <span className="text-neon-gold font-arcade">${groups[groupWinners.length - 1]?.totalPot}</span>
-                </div>
-              </div>
 
-              {groupWinners[groupWinners.length - 1]?.id !== user.id && (
-                <div className="text-neon-pink mb-6">😔 Better luck next time!</div>
-              )}
+                {/* Arrow Down - Only show if winner */}
+                {groupWinners.some(w => w.id === user.id) && (
+                  <div className="flex justify-center">
+                    <div className="text-2xl text-neon-green">↓</div>
+                  </div>
+                )}
+
+                {/* Stage 3: Final Spin (Upcoming) - Only show if winner */}
+                {groupWinners.some(w => w.id === user.id) && (
+                  <div className="text-center">
+                    <div className="text-sm font-arcade text-slate-400 mb-2 uppercase tracking-wider">Stage 3: Final Spin</div>
+                    <div className="text-xs text-slate-500">1 Winner from 10 finalists</div>
+                  </div>
+                )}
+
+                {/* Arrow Down - Only show if winner */}
+                {groupWinners.some(w => w.id === user.id) && (
+                  <div className="flex justify-center">
+                    <div className="text-2xl text-slate-600">↓</div>
+                  </div>
+                )}
+
+                {/* Stage 4: Champion (Upcoming) - Only show if winner */}
+                {groupWinners.some(w => w.id === user.id) && (
+                  <div className="text-center">
+                    <div className="text-sm font-arcade text-slate-500 uppercase tracking-wider">Stage 4: 🏆 CHAMPION 🏆</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -992,7 +1091,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               <div className="text-6xl mb-4">😔</div>
               <div className="text-2xl font-arcade text-neon-pink mb-3">Better luck next time!</div>
               <div className="text-sm text-slate-400 mb-6">You weren't among the 10 winners. Your bet is locked for this tournament.</div>
-              <button onClick={exitToLobby} className="px-8 py-4 bg-neon-pink text-black font-arcade text-lg font-bold rounded hover:scale-105 transition shadow-lg">Back to Lobby</button>
+              <button onClick={exitToLobby} className="px-8 py-4 border-2 border-red-500 text-red-500 font-arcade text-lg font-bold hover:bg-red-500 hover:text-black transition">Back to Lobby</button>
             </div>
           </div>
         )}
@@ -1174,7 +1273,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         setChatInput('');
                       }
                     }}
-                    className="bg-neon-pink text-white px-1.5 sm:px-2 py-1 sm:py-1.5 rounded text-xs font-bold min-h-[32px] sm:min-h-[36px]"
+                    className="border border-neon-pink text-neon-pink px-1.5 sm:px-2 py-1 sm:py-1.5 hover:bg-neon-pink hover:text-white text-xs font-bold min-h-[32px] sm:min-h-[36px] transition"
                   >
                     ✓
                   </button>
@@ -1275,7 +1374,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                           setChatInput('');
                         }
                       }}
-                      className="bg-neon-green text-black px-2.5 py-1.5 rounded hover:bg-white text-xs font-bold transition"
+                      className="border border-neon-green text-neon-green px-2.5 py-1.5 hover:bg-neon-green hover:text-black text-xs font-bold transition"
                     >
                       ✓
                     </button>
@@ -1344,7 +1443,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   </div>
                   <button
                     onClick={exitToLobby}
-                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-neon-gold to-neon-cyan text-black font-arcade text-sm sm:text-base md:text-lg rounded hover:scale-110 transition drop-shadow-[0_0_15px_rgba(255,215,0,0.4)] font-bold shadow-lg"
+                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-neon-gold text-neon-gold font-arcade text-sm sm:text-base md:text-lg hover:bg-neon-gold hover:text-black transition drop-shadow-[0_0_15px_rgba(255,215,0,0.4)] font-bold"
                   >
                     Back to Lobby
                   </button>
@@ -1354,14 +1453,14 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                 <div className="w-full">
                   <div className="text-2xl sm:text-3xl md:text-4xl mb-1 sm:mb-2 md:mb-3">😔</div>
                   <div className="text-base sm:text-lg md:text-2xl font-arcade text-neon-pink mb-2 sm:mb-3 md:mb-4">Better luck next time!</div>
-                  <div className="bg-slate-800/50 border border-neon-cyan/30 rounded p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4">
+                  <div className="bg-slate-800/50 border border-neon-pink/30 rounded p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4">
                     <div className="text-[8px] sm:text-[9px] md:text-xs text-slate-400 mb-1">Grand Champion</div>
                     <img src={grandWinner?.avatar} alt="champion" className="w-10 sm:w-11 md:w-14 h-10 sm:h-11 md:h-14 rounded-full mx-auto mb-1 sm:mb-2" />
-                    <div className="font-arcade text-[9px] sm:text-xs md:text-base text-neon-cyan">{grandWinner?.username}</div>
+                    <div className="font-arcade text-[9px] sm:text-xs md:text-base text-neon-pink">{grandWinner?.username}</div>
                   </div>
                   <button
                     onClick={exitToLobby}
-                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 bg-neon-pink text-black font-arcade text-sm sm:text-base md:text-lg rounded hover:scale-105 transition font-bold shadow-lg"
+                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-red-500 text-red-500 font-arcade text-sm sm:text-base md:text-lg hover:bg-red-500 hover:text-black transition font-bold"
                   >
                     Back to Lobby
                   </button>
@@ -1370,6 +1469,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
             </div>
           </div>
         )}
+
+        {/* Rank Up Modal */}
+        {showRankUp && <RankUpModal newRank={user.rank} previousRank={previousRank} onClose={() => setShowRankUp(false)} />}
       </div>
     </div>
   );

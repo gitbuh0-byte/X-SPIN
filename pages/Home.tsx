@@ -108,7 +108,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
     <div className="p-2 sm:p-3 md:p-6 max-w-7xl mx-auto flex flex-col justify-center min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-80px)] mt-8 sm:mt-12 md:mt-16">
       {/* Hero */}
       <div className="text-center mb-6 sm:mb-8 md:mb-16 relative mt-8 sm:mt-12 md:mt-16 z-20">
-        <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter animate-glitch">
+        <h1 className="relative z-10 text-6xl md:text-9xl font-arcade font-black text-white mb-2 tracking-tighter">
           X <span className="text-neon-pink text-glow-pink">PIN</span>
         </h1>
         <div className="h-1 w-16 md:w-24 bg-gradient-to-r from-neon-cyan via-white to-neon-pink mx-auto mb-4 md:mb-6"></div>

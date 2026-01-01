@@ -61,18 +61,8 @@ const BettingModal: React.FC<BettingModalProps> = ({
       return;
     }
 
-    if (amount > availableBalance) {
-      setError('Insufficient balance');
-      soundManager.play('warning');
-      return;
-    }
-
-    if (amount > maxAllowed) {
-      setError(`Maximum bet is $${maxAllowed}`);
-      soundManager.play('warning');
-      return;
-    }
-
+    // Allow onConfirm to be called regardless of balance or max
+    // GameRoom will handle all validation and deposit prompts
     soundManager.play('lock');
     onConfirm(amount);
   };
@@ -109,33 +99,21 @@ const BettingModal: React.FC<BettingModalProps> = ({
           <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
             Available Balance
           </div>
-          <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-neon-green font-black">
-            ${userBalance.toLocaleString()}
+          <div className={`text-2xl sm:text-3xl md:text-4xl font-arcade font-black ${
+            (userBalance - parseInt(betAmount)) < 0 ? 'text-red-500' : 'text-neon-green'
+          }`}>
+            ${(userBalance - parseInt(betAmount)).toLocaleString()}
           </div>
         </div>
 
-        {/* Bet Input */}
-        <div className="mb-4 sm:mb-6">
-          <label className="block text-slate-400 text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-wider mb-2">
-            Bet Amount ($)
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-neon-cyan font-arcade text-base sm:text-lg">$</span>
-            <input
-              type="number"
-              value={betAmount}
-              onChange={handleBetChange}
-              className="w-full bg-black/50 border border-white/20 p-3 sm:p-4 pl-8 sm:pl-10 text-white font-arcade text-lg sm:text-xl focus:border-neon-cyan focus:outline-none focus:bg-black/70 focus:shadow-[0_0_15px_rgba(0,255,255,0.3)] transition-all rounded-sm"
-              placeholder="50"
-              min={minBet}
-              max={maxAllowed}
-            />
+        {/* Bet Amount Display */}
+        <div className="bg-black/40 border border-white/10 rounded-sm p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+            Bet Amount
           </div>
-          {error && (
-            <div className="text-neon-pink text-[9px] sm:text-xs font-bold mt-2 uppercase tracking-widest">
-              ⚠️ {error}
-            </div>
-          )}
+          <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-neon-cyan font-black">
+            ${parseInt(betAmount).toLocaleString()}
+          </div>
         </div>
 
         {/* Quick Bet Buttons */}

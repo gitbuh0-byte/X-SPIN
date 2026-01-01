@@ -198,7 +198,6 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
                 onClick={() => {
                   if (window.confirm('Are you sure you want to deactivate your account? You will not be able to access your account for 30 days.')) {
                     if (window.confirm('This action cannot be undone. Continue?')) {
-                      console.log('Account deactivated');
                       // TODO: Call API to deactivate account
                     }
                   }
@@ -218,7 +217,6 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
                 onClick={() => {
                   if (window.confirm('Are you absolutely sure? All your data will be permanently deleted and cannot be recovered.')) {
                     if (window.confirm('This is permanent. Type CONFIRM to delete your account.')) {
-                      console.log('Account deletion initiated');
                       // TODO: Call API to delete account
                     }
                   }
