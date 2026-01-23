@@ -933,16 +933,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
 
         {/* Spin Wheel - Responsive */}
         <div className="flex-1 flex flex-col items-center justify-center p-1 sm:p-2 md:p-4 min-h-[220px] sm:min-h-[320px] relative overflow-visible gap-2 sm:gap-4">
-          {/* Countdown Display - Before Spin */}
-          {gameState === GameState.BETTING && timer > 0 && (
-            <div className="text-center mb-2 sm:mb-4">
-              <div className="text-[10px] sm:text-[12px] font-arcade text-neon-cyan uppercase tracking-wider mb-1 sm:mb-2">Spin starts in</div>
-              <div className="text-2xl sm:text-4xl md:text-5xl font-arcade font-black text-neon-cyan drop-shadow-[0_0_20px_rgba(0,255,255,0.6)]">
-                {timer}s
-              </div>
-            </div>
-          )}
-
           {/* Wheel Container with Pointer and Pot */}
           <div className="flex-1 flex flex-col items-center justify-center w-full relative">
             <SpinWheel 
@@ -960,8 +950,51 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
                 ${players.filter(p => p.status === PlayerStatus.CONFIRMED).reduce((sum, p) => sum + p.betAmount, 0)}
               </div>
             </div>
+
+            {/* Winner/Loser Image - Bottom Right of Wheel */}
+            <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 z-[201] pointer-events-none bg-transparent">
+              <img 
+                src={winnerAlert ? (winnerAlert.isUserWin ? '/winner.png' : '/loser.png') : ''} 
+                alt={winnerAlert?.isUserWin ? 'Winner' : 'Loser'}
+                className={`w-40 h-40 sm:w-56 sm:h-56 md:w-64 md:h-64 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent ${
+                  winnerAlert?.isUserWin ? 'animate-winner-bounce' : 'animate-loser-shake'
+                }`}
+                style={{ backgroundColor: 'transparent', display: winnerAlert ? 'block' : 'none' }}
+              />
+            </div>
+            <style>{`
+              @keyframes winnerBreathe {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.15); }
+              }
+              @keyframes loserShake {
+                0%, 100% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; }
+                25% { transform: translateX(-10px) rotate(-5deg) scale(0.95); opacity: 0.8; }
+                50% { transform: translateX(10px) rotate(5deg) scale(0.9); opacity: 0.6; }
+                75% { transform: translateX(-10px) rotate(-5deg) scale(0.95); opacity: 0.8; }
+              }
+              .animate-winner-bounce {
+                animation: winnerBreathe 2.5s ease-in-out infinite;
+              }
+              .animate-loser-shake {
+                animation: loserShake 2.5s ease-in-out infinite;
+              }
+            `}</style>
           </div>
         </div>
+
+        {/* Countdown Display - Fixed Overlay (rendered outside wheel container) */}
+        {gameState === GameState.BETTING && timer > 0 && (
+          <div className="fixed inset-0 flex flex-col items-center justify-center pointer-events-none z-[9999]" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'auto', height: 'auto' }}>
+            <div className="text-center">
+              <div className="text-[12px] sm:text-[14px] font-arcade text-neon-cyan uppercase tracking-wider mb-2 sm:mb-3 drop-shadow-[0_0_20px_rgba(0,255,255,1)]">⏱️ Spin starts in</div>
+              <div className="text-6xl sm:text-8xl md:text-9xl font-arcade font-black text-neon-cyan drop-shadow-[0_0_40px_rgba(0,255,255,1)] animate-pulse">
+                {timer}
+              </div>
+              <div className="text-2xl sm:text-3xl font-arcade font-black text-neon-cyan drop-shadow-[0_0_20px_rgba(0,255,255,1)] mt-2">seconds</div>
+            </div>
+          </div>
+        )}
 
         {/* Action Console - Simple Betting */}
         <div className="p-2 sm:p-3 md:p-4 bg-vegas-panel/90 border-t border-white/5 z-20 backdrop-blur-md max-h-[45vh] sm:max-h-[40vh] md:max-h-none overflow-y-auto md:overflow-y-visible">

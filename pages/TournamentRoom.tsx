@@ -434,10 +434,10 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* Trophy announcement removed */}
 
-      {/* Show custom tournament winner animation when winners are announced (during GROUP_RESULT for winners) */}
-      {announcing && displayedWinners.length > 0 && phase === 'GROUP_RESULT' && displayedWinners.some(dw => dw.id === user.id) && (
+      {/* Show custom tournament winner animation when winners are announced (during GROUP_RESULT for winners and losers) */}
+      {announcing && displayedWinners.length > 0 && phase === 'GROUP_RESULT' && (
         <TournamentWinnerAnimation
-          isUserWinner={true}
+          isUserWinner={displayedWinners.some(dw => dw.id === user.id)}
           winnerCount={displayedWinners.length}
         />
       )}
@@ -1013,12 +1013,12 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* GROUP_RESULT - Tournament Flow Visualization */}
         {phase === 'GROUP_RESULT' && (
-          <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto relative">
             <div className="w-full max-w-4xl">
               {/* Tournament Flow Diagram */}
               <div className="space-y-6">
                 {/* Stage 2: Group Winners */}
-                <div className="bg-gradient-to-b from-slate-800/40 to-black/40 border border-neon-gold/50 rounded-lg p-6">
+                <div className="bg-gradient-to-b from-slate-800/40 to-black/40 border border-neon-gold/50 rounded-lg p-6 relative">
                   <div className="text-sm font-arcade text-slate-400 mb-4 uppercase tracking-wider">Stage 2: 10 Winners Selected</div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
                     {groupWinners.map((winner, idx) => (
@@ -1049,6 +1049,18 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                       <div className="text-xs text-slate-400">You didn't win your group</div>
                     </div>
                   )}
+
+                  {/* Winner/Loser Image - Bottom Right of Card */}
+                  <div className="absolute bottom-4 right-4 z-[201] pointer-events-none bg-transparent max-w-[360px] max-h-[360px]">
+                    <img 
+                      src={groupWinners.some(w => w.id === user.id) ? '/winnerman.png' : '/loserman.png'} 
+                      alt={groupWinners.some(w => w.id === user.id) ? 'Winner' : 'Loser'}
+                      className={`w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent ${
+                        groupWinners.some(w => w.id === user.id) ? 'animate-winner-jump' : 'animate-loser-sad'
+                      }`}
+                      style={{ backgroundColor: 'transparent' }}
+                    />
+                  </div>
                 </div>
 
                 {/* Arrow Down - Only show if winner */}
@@ -1447,6 +1459,16 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   >
                     Back to Lobby
                   </button>
+
+                  {/* Winner Image - Bottom Right of Display Area */}
+                  <div className="absolute bottom-4 right-4 z-[201] pointer-events-none bg-transparent max-w-[240px] max-h-[240px]">
+                    <img 
+                      src="/winnerman.png" 
+                      alt="Winner"
+                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent animate-winner-celebrate"
+                      style={{ backgroundColor: 'transparent' }}
+                    />
+                  </div>
                 </div>
               ) : (
                 // Eliminated - Mobile Responsive
@@ -1464,6 +1486,16 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   >
                     Back to Lobby
                   </button>
+
+                  {/* Loser Image - Bottom Right of Display Area */}
+                  <div className="absolute bottom-4 right-4 z-[201] pointer-events-none bg-transparent max-w-[240px] max-h-[240px]">
+                    <img 
+                      src="/loserman.png" 
+                      alt="Loser"
+                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent animate-loser-cry"
+                      style={{ backgroundColor: 'transparent' }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1473,6 +1505,36 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
         {/* Rank Up Modal */}
         {showRankUp && <RankUpModal newRank={user.rank} previousRank={previousRank} onClose={() => setShowRankUp(false)} />}
       </div>
+
+      {/* Animation Styles */}
+      <style>{`
+        @keyframes winnerBreathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+        @keyframes loserSad {
+          0%, 100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.8; }
+          50% { transform: translateY(10px) rotate(-20deg) scale(0.9); opacity: 0.6; }
+        }
+        @keyframes loserCry {
+          0%, 100% { transform: translateY(0) rotate(-5deg) scale(0.95); opacity: 0.7; }
+          25% { transform: translateY(15px) rotate(-25deg) scale(0.85); opacity: 0.5; }
+          50% { transform: translateY(0) rotate(-5deg) scale(0.95); opacity: 0.7; }
+          75% { transform: translateY(10px) rotate(-20deg) scale(0.9); opacity: 0.6; }
+        }
+        .animate-winner-jump {
+          animation: winnerBreathe 2.5s ease-in-out infinite;
+        }
+        .animate-winner-celebrate {
+          animation: winnerBreathe 2.5s ease-in-out infinite;
+        }
+        .animate-loser-sad {
+          animation: loserSad 2.5s ease-in-out infinite;
+        }
+        .animate-loser-cry {
+          animation: loserCry 2.8s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };
