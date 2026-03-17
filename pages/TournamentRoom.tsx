@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SpinWheel from '../components/SpinWheel.tsx';
 import TournamentWinnerAnimation from '../components/TournamentWinnerAnimation.tsx';
-import TournamentBracket from '../components/TournamentBracket.tsx';
+import TournamentBracketNew from '../components/TournamentBracketNew.tsx';
 import RankUpModal from '../components/RankUpModal.tsx';
 import { User, Player, UserRank } from '../types.ts';
 import { COLORS, COLOR_HEX } from '../constants.ts';
@@ -58,9 +58,6 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const [finalTarget, setFinalTarget] = useState(0);
   const [finalSpinning, setFinalSpinning] = useState(false);
   const [grandWinner, setGrandWinner] = useState<Player | null>(null);
-  
-  // Bracket view countdown
-  const [bracketCountdown, setBracketCountdown] = useState(10);
   
   // UI state
   const [expandedGroup, setExpandedGroup] = useState<number | null>(null);
@@ -175,13 +172,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
   const joinGameroom = () => {
     updateBalance(-ENTRY_FEE);
-    setBracketCountdown(10);
     setPhase('BRACKET_VIEW');
-    setTimeout(() => {
-      setPhase('GROUPS');
-      setCountdown(3);
-      setCountdownActive(true);
-    }, 10500);
   };
 
   const startGroupSpin = () => {
@@ -265,14 +256,6 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     const t = setTimeout(() => setFinalColorCountdown(c => (c !== null ? c - 1 : null)), 1000);
     return () => clearTimeout(t);
   }, [finalColorCountdown]);
-
-  // Bracket view countdown
-  useEffect(() => {
-    if (phase !== 'BRACKET_VIEW') return;
-    if (bracketCountdown <= 0) return;
-    const timer = setTimeout(() => setBracketCountdown(c => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [bracketCountdown, phase]);
 
   // Auto-advance winners from GROUP_RESULT
   useEffect(() => {
@@ -640,13 +623,18 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           </div>
         )}
 
-        {/* BRACKET_VIEW - Tournament Bracket with Countdown */}
+        {/* BRACKET_VIEW - Tournament Bracket with Proceed Button */}
         {phase === 'BRACKET_VIEW' && (
           <div className="flex-1 flex items-center justify-center bg-black/40">
-            <TournamentBracket 
-              countdown={bracketCountdown} 
+            <TournamentBracketNew 
               groupNumber={userGroup}
               playersInGroup={PLAYERS_PER_GROUP}
+              onProceedClick={() => {
+                soundManager.play('click');
+                setPhase('GROUPS');
+                setCountdown(3);
+                setCountdownActive(true);
+              }}
             />
           </div>
         )}
