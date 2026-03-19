@@ -1,12 +1,31 @@
 import { AuthMethod } from '../types.ts';
+import { initializeApp } from 'firebase/app';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  setPersistence,
+  browserLocalPersistence,
+  onAuthStateChanged,
+  Auth,
+} from 'firebase/auth';
 
-// Google OAuth Configuration//
-const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
-const GOOGLE_REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/auth/google/callback` : '';
+// Firebase Configuration
+const FIREBASE_CONFIG = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+};
 
-// Facebook OAuth Configuration//
-const FACEBOOK_APP_ID = process.env.REACT_APP_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
-const FACEBOOK_REDIRECT_URI = `${window.location.origin}/auth/facebook/callback`;
+// Google OAuth (for fallback if Firebase not available)
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+// Facebook OAuth Configuration
+const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
 
 export interface AuthUser {
   id: string;
@@ -17,23 +36,95 @@ export interface AuthUser {
   phoneNumber?: string;
 }
 
+// Firebase app and auth instances
+let firebaseApp: any = null;
+let firebaseAuth: Auth | null = null;
+let firebaseInitialized = false;
+
+/**
+ * Initialize Firebase using the npm package
+ */
+export const initializeFirebase = (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (firebaseInitialized && firebaseAuth) {
+      console.log('✓ Firebase already initialized');
+      resolve();
+      return;
+    }
+
+    if (!FIREBASE_CONFIG.apiKey) {
+      console.warn('⚠ Firebase API Key not configured in .env');
+      reject(new Error('Firebase API Key not configured'));
+      return;
+    }
+
+    try {
+      console.log('Initializing Firebase with project:', FIREBASE_CONFIG.projectId);
+      
+      // Initialize Firebase app
+      firebaseApp = initializeApp(FIREBASE_CONFIG);
+      
+      // Initialize Auth
+      firebaseAuth = getAuth(firebaseApp);
+      
+      // Set persistence
+      setPersistence(firebaseAuth, browserLocalPersistence)
+        .then(() => {
+          firebaseInitialized = true;
+          console.log('✓ Firebase initialized successfully');
+          resolve();
+        })
+        .catch((error) => {
+          console.error('Firebase persistence error:', error);
+          firebaseInitialized = true; // Still consider it initialized even if persistence fails
+          resolve();
+        });
+    } catch (error: any) {
+      console.error('Firebase initialization error:', error);
+      if (error.code !== 'app/duplicate-app') {
+        reject(error);
+      } else {
+        console.log('✓ Firebase app already initialized');
+        firebaseInitialized = true;
+        resolve();
+      }
+    }
+  });
+};
+
 /**
  * Initialize Google OAuth
  * Loads the Google Sign-In library
  */
 export const initializeGoogleAuth = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if (window.google) {
+    if (window.google?.accounts?.id) {
+      console.log('✓ Google auth already loaded');
       resolve();
       return;
     }
 
+    console.log('Loading Google Sign-In library...');
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google Auth library'));
+    script.onload = () => {
+      console.log('✓ Google Sign-In script loaded');
+      // Wait a bit for Google to be fully initialized
+      setTimeout(() => {
+        if (window.google?.accounts?.id) {
+          console.log('✓ window.google.accounts.id available');
+          resolve();
+        } else {
+          reject(new Error('Google accounts API not available after script load'));
+        }
+      }, 100);
+    };
+    script.onerror = () => {
+      console.error('✗ Failed to load Google Sign-In script');
+      reject(new Error('Failed to load Google auth library'));
+    };
     document.head.appendChild(script);
   });
 };
@@ -69,33 +160,189 @@ export const initializeFacebookAuth = (): Promise<void> => {
 };
 
 /**
- * Authenticate with Google
- * Opens Google Sign-In dialog and returns user data
+ * Authenticate with Google using Firebase
+ */
+export const authenticateWithGoogleFirebase = (): Promise<AuthUser> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('Starting Firebase Google authentication...');
+      
+      if (!firebaseInitialized || !firebaseAuth) {
+        console.log('Firebase not initialized, initializing now...');
+        await initializeFirebase();
+      }
+
+      if (!firebaseAuth) {
+        console.error('Firebase auth not available after initialization');
+        reject(new Error('Firebase not initialized. Please try again.'));
+        return;
+      }
+
+      const provider = new GoogleAuthProvider();
+      
+      console.log('Showing Firebase Google Sign-In popup...');
+      const result = await signInWithPopup(firebaseAuth, provider);
+      const user = result.user;
+      
+      console.log('✓ Firebase Google auth successful, user:', user.email);
+      const authUser: AuthUser = {
+        id: user.uid,
+        username: user.displayName || user.email?.split('@')[0] || 'Player',
+        email: user.email || '',
+        avatar: user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.email}`,
+        authMethod: AuthMethod.GOOGLE,
+      };
+      resolve(authUser);
+    } catch (error: any) {
+      console.error('Firebase Google auth error:', error.code, error.message);
+      if (error.code === 'auth/popup-closed-by-user') {
+        reject(new Error('Sign-in cancelled. Please try again.'));
+      } else if (error.code === 'auth/popup-blocked') {
+        reject(new Error('Sign-in popup was blocked. Please enable popups and try again.'));
+      } else if (error.code === 'auth/operation-not-supported-in-this-environment') {
+        console.log('Firebase popup not supported in this environment');
+        reject(new Error('Please try again or use a different sign-in method.'));
+      } else {
+        reject(new Error(error.message || 'Google sign-in failed. Please check your connection.'));
+      }
+    }
+  });
+};
+
+/**
+ * Get current Firebase authenticated user
+ */
+export const getCurrentFirebaseUser = (): Promise<AuthUser | null> => {
+  return new Promise(async (resolve) => {
+    try {
+      if (!firebaseInitialized || !firebaseAuth) {
+        await initializeFirebase();
+      }
+
+      if (!firebaseAuth) {
+        resolve(null);
+        return;
+      }
+
+      onAuthStateChanged(firebaseAuth, (user) => {
+        if (user) {
+          const authUser: AuthUser = {
+            id: user.uid,
+            username: user.displayName || user.email?.split('@')[0] || 'Player',
+            email: user.email || '',
+            avatar: user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.email}`,
+            authMethod: AuthMethod.GOOGLE,
+          };
+          resolve(authUser);
+        } else {
+          resolve(null);
+        }
+      });
+    } catch (error) {
+      console.error('Error getting current Firebase user:', error);
+      resolve(null);
+    }
+  });
+};
+
+/**
+ * Logout from Firebase
+ */
+export const logoutFirebase = (): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (!firebaseInitialized || !firebaseAuth) {
+        resolve();
+        return;
+      }
+
+      await signOut(firebaseAuth);
+      console.log('✓ Logged out from Firebase');
+      resolve();
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      reject(new Error(error.message || 'Logout failed'));
+    }
+  });
+};
+
+/**
+ * Check if user is authenticated with Firebase
+ */
+export const isFirebaseAuthenticated = async (): Promise<boolean> => {
+  try {
+    if (!firebaseInitialized || !firebaseAuth) {
+      await initializeFirebase();
+    }
+
+    if (!firebaseAuth) {
+      return false;
+    }
+
+    return firebaseAuth.currentUser !== null;
+  } catch (error) {
+    console.error('Error checking Firebase auth status:', error);
+    return false;
+  }
+};
+
+/**
+ * Get Firebase auth token (for API calls)
+ */
+export const getFirebaseToken = async (): Promise<string | null> => {
+  try {
+    if (!firebaseInitialized || !firebaseAuth) {
+      await initializeFirebase();
+    }
+
+    if (!firebaseAuth || !firebaseAuth.currentUser) {
+      return null;
+    }
+
+    return await firebaseAuth.currentUser.getIdToken();
+  } catch (error) {
+    console.error('Error getting Firebase token:', error);
+    return null;
+  }
+};
+
+/**
+ * Authenticate with Google (Fallback non-Firebase version)
  */
 export const authenticateWithGoogle = (): Promise<AuthUser> => {
-  return new Promise((resolve, reject) => {
-    if (!window.google) {
-      reject(new Error('Google authentication unavailable. Please refresh the page and try again.'));
-      return;
-    }
-
-    if (!GOOGLE_CLIENT_ID) {
-      reject(new Error('Google setup incomplete. Please contact support.'));
-      return;
-    }
-
+  return new Promise(async (resolve, reject) => {
     try {
+      // Ensure Google is loaded
+      if (!window.google?.accounts?.id) {
+        console.log('Google not ready, initializing...');
+        try {
+          await initializeGoogleAuth();
+        } catch (err) {
+          console.error('Failed to initialize Google:', err);
+          reject(new Error('Google authentication library failed to load. Please refresh and try again.'));
+          return;
+        }
+      }
+
+      if (!window.google?.accounts?.id) {
+        reject(new Error('Google authentication unavailable. Please refresh the page and try again.'));
+        return;
+      }
+
+      // Note: Firebase handles Google auth, so we don't need separate Google Client ID
+      console.log('Using Firebase for Google authentication');
+
       let resolved = false;
 
       window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID',
         callback: (response: any) => {
           if (resolved) return;
           resolved = true;
 
           if (response.credential) {
             try {
-              // Decode JWT token to get user info
+              console.log('✓ Google authentication successful');
               const parts = response.credential.split('.');
               if (parts.length !== 3) {
                 reject(new Error('Invalid authentication response. Please try again.'));
@@ -111,6 +358,7 @@ export const authenticateWithGoogle = (): Promise<AuthUser> => {
               };
               resolve(authUser);
             } catch (error) {
+              console.error('Failed to decode credential:', error);
               reject(new Error('Failed to process authentication. Please try again.'));
             }
           } else {
@@ -120,21 +368,25 @@ export const authenticateWithGoogle = (): Promise<AuthUser> => {
         error_callback: () => {
           if (!resolved) {
             resolved = true;
+            console.error('Google One Tap error');
             reject(new Error('Google sign-in failed. Please check your connection and try again.'));
           }
         },
       });
 
-      // Use One Tap UI
+      console.log('Showing Google One Tap UI...');
       setTimeout(() => {
-        if (!resolved && window.google) {
+        if (!resolved && window.google?.accounts?.id) {
           window.google.accounts.id.prompt((notification: any) => {
-            // Silently fail - user can click button to retry
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              console.log('One Tap not displayed');
+            }
           });
         }
       }, 100);
-    } catch (error) {
-      reject(new Error('Unable to initialize Google sign-in. Please try again.'));
+    } catch (error: any) {
+      console.error('Google auth error:', error);
+      reject(new Error(error.message || 'Unable to initialize Google sign-in. Please try again.'));
     }
   });
 };
@@ -191,9 +443,9 @@ export const authenticateWithApple = (): Promise<AuthUser> => {
     script.onload = () => {
       if (window.AppleID) {
         window.AppleID.auth.init({
-          clientId: process.env.REACT_APP_APPLE_CLIENT_ID || '',
-          teamId: process.env.REACT_APP_APPLE_TEAM_ID || '',
-          keyId: process.env.REACT_APP_APPLE_KEY_ID || '',
+          clientId: import.meta.env.VITE_APPLE_CLIENT_ID || '',
+          teamId: import.meta.env.VITE_APPLE_TEAM_ID || '',
+          keyId: import.meta.env.VITE_APPLE_KEY_ID || '',
           redirectURI: `${window.location.origin}/auth/apple/callback`,
           usePopup: true,
         });
@@ -277,12 +529,13 @@ export const checkAuthStatus = (authMethod: AuthMethod): Promise<AuthUser | null
   });
 };
 
-// Extend Window interface to include Google, Facebook, and Apple
+// Extend Window interface to include Google, Facebook, Apple, and Firebase
 declare global {
   interface Window {
     google?: any;
     FB?: any;
     AppleID?: any;
     grecaptcha?: any;
+    firebase?: any;
   }
 }

@@ -5,10 +5,15 @@ class SoundManager {
   private muted: boolean = false;
   private bgmPlaying: boolean = false;
   private hasInteracted: boolean = false;
+  private bgmVolume: number = 0.5; // Default 50% for better hearing
+  private sfxVolume: number = 0.5;
+  private autoplayAttempted: boolean = false;
+  private audioContext: AudioContext | null = null;
+  private bgmOscillators: OscillatorNode[] = [];
 
   constructor() {
     this.sounds = {
-      bgm: new Audio('https://ia800605.us.archive.org/8/items/DavidKBD_Cyberpunk_Pack/01_Cyberpunk_City_No_Drum.mp3'),
+      bgm: new Audio(),
       spin: new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'),
       win: new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'),
       lose: new Audio('https://assets.mixkit.co/active_storage/sfx/2022/2022-preview.mp3'),
@@ -25,28 +30,187 @@ class SoundManager {
       'grand-winner': new Audio('https://assets.mixkit.co/active_storage/sfx/2009/2009-preview.mp3'),
     };
 
-    this.sounds.bgm.loop = true;
-    this.sounds.bgm.volume = 0.15;
-    this.sounds.spin.loop = true;
-    this.sounds.spin.volume = 0.5;
+    // Set SFX volumes
+    Object.keys(this.sounds).forEach(key => {
+      if (key !== 'bgm') {
+        this.sounds[key].volume = this.sfxVolume;
+      }
+    });
+
+    // Load saved volumes
+    this.loadVolumes();
+    
+    // Set up click listener for autoplay
+    this.setupAutoplayListener();
+    
+    console.log('🎵 SoundManager initialized - Web Audio BGM system ready');
+  }
+
+  private setupAutoplayListener() {
+    // Listen for any user interaction to enable autoplay
+    const enableAutoplay = () => {
+      this.hasInteracted = true;
+      if (!this.bgmPlaying && !this.muted) {
+        this.play('bgm');
+      }
+      // Remove listener after first interaction
+      document.removeEventListener('click', enableAutoplay);
+      document.removeEventListener('keydown', enableAutoplay);
+    };
+    
+    document.addEventListener('click', enableAutoplay);
+    document.addEventListener('keydown', enableAutoplay);
+  }
+
+  private loadVolumes() {
+    const savedSettings = localStorage.getItem('music-settings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        this.bgmVolume = settings.bgmVolume ?? 0.5;
+        this.sfxVolume = settings.sfxVolume ?? 0.5;
+        this.muted = settings.muted ?? false;
+        this.applyVolumes();
+      } catch (e) {
+        console.warn('Failed to load saved music settings:', e);
+      }
+    }
+  }
+
+  private applyVolumes() {
+    Object.keys(this.sounds).forEach(key => {
+      if (key !== 'bgm') {
+        this.sounds[key].volume = this.muted ? 0 : this.sfxVolume;
+      }
+    });
+  }
+
+  setBgmVolume(volume: number) {
+    this.bgmVolume = Math.max(0, Math.min(1, volume));
+    this.applyVolumes();
+    this.saveVolumes();
+    
+    // Apply to Web Audio if playing
+    if (this.audioContext && this.bgmPlaying) {
+      // Volume changes will take effect on next BGM start
+    }
+  }
+
+  setSfxVolume(volume: number) {
+    this.sfxVolume = Math.max(0, Math.min(1, volume));
+    this.applyVolumes();
+    this.saveVolumes();
+  }
+
+  getBgmVolume() {
+    return this.bgmVolume;
+  }
+
+  getSfxVolume() {
+    return this.sfxVolume;
+  }
+
+  private saveVolumes() {
+    localStorage.setItem('music-settings', JSON.stringify({
+      bgmVolume: this.bgmVolume,
+      sfxVolume: this.sfxVolume,
+      muted: this.muted,
+    }));
+  }
+
+  private generateFunkyMusic() {
+    // Create Web Audio context if needed
+    if (!this.audioContext) {
+      try {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (e) {
+        console.error('🎵 Web Audio API not supported:', e);
+        return;
+      }
+    }
+
+    const ctx = this.audioContext;
+    
+    // Resume audio context if suspended (required after user gesture)
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(e => console.warn('Could not resume AudioContext:', e));
+    }
+
+    // Create gainNode for volume control
+    const gainNode = ctx.createGain();
+    gainNode.connect(ctx.destination);
+    gainNode.gain.setValueAtTime(this.muted ? 0 : this.bgmVolume * 0.3, ctx.currentTime);
+
+    // Generate a funky looping pattern
+    const playFunkyPattern = () => {
+      if (!this.bgmPlaying || this.muted) return;
+
+      // Create a funky bass line and melody
+      const now = ctx.currentTime;
+      
+      // Bass line (low funky pulses)
+      const bass = ctx.createOscillator();
+      bass.type = 'square';
+      bass.frequency.setValueAtTime(80, now);
+      bass.frequency.setValueAtTime(90, now + 0.2);
+      bass.frequency.setValueAtTime(110, now + 0.4);
+      bass.frequency.setValueAtTime(80, now + 0.6);
+      
+      const bassGain = ctx.createGain();
+      bass.connect(bassGain);
+      bassGain.connect(gainNode);
+      bassGain.gain.setValueAtTime(0.4, now);
+      
+      // Melody (high funky tones)
+      const melody = ctx.createOscillator();
+      melody.type = 'sine';
+      const melodyNotes = [400, 500, 600, 500, 400, 450, 500, 450];
+      
+      for (let i = 0; i < melodyNotes.length; i++) {
+        melody.frequency.setValueAtTime(melodyNotes[i], now + (i * 0.1));
+      }
+      
+      const melodyGain = ctx.createGain();
+      melody.connect(melodyGain);
+      melodyGain.connect(gainNode);
+      melodyGain.gain.setValueAtTime(0.3, now);
+      
+      // Start and stop
+      const duration = 0.8;
+      bass.start(now);
+      bass.stop(now + duration);
+      melody.start(now);
+      melody.stop(now + duration);
+      
+      this.bgmOscillators.push(bass, melody);
+      
+      // Schedule next pattern
+      if (this.bgmPlaying && !this.muted) {
+        setTimeout(() => playFunkyPattern(), duration * 1000);
+      }
+    };
+
+    // Start the pattern
+    playFunkyPattern();
+    this.bgmPlaying = true;
+    console.log('🎵 Funky background music started (Web Audio)');
   }
 
   play(key: string) {
-    if (this.muted) return;
     this.hasInteracted = true;
+    
+    if (key === 'bgm') {
+      if (!this.bgmPlaying && !this.muted) {
+        this.generateFunkyMusic();
+      }
+      return;
+    }
+
+    // For SFX - respect muted state
+    if (this.muted) return;
     
     const sound = this.sounds[key];
     if (sound) {
-      if (key === 'bgm') {
-        if (!this.bgmPlaying) {
-          const p = sound.play();
-          this.playPromises[key] = p;
-          p.then(() => { this.bgmPlaying = true; })
-           .catch(() => { /* Silent fail */ });
-        }
-        return;
-      }
-      
       if (!sound.loop) {
         sound.currentTime = 0;
       }
@@ -60,11 +224,25 @@ class SoundManager {
   }
 
   stop(key: string) {
+    if (key === 'bgm') {
+      // Stop all oscillators
+      this.bgmOscillators.forEach(osc => {
+        try {
+          osc.stop();
+        } catch (e) {
+          // Already stopped
+        }
+      });
+      this.bgmOscillators = [];
+      this.bgmPlaying = false;
+      console.log('🎵 Background music stopped');
+      return;
+    }
+
     const sound = this.sounds[key];
     const promise = this.playPromises[key];
     if (sound) {
       if (promise) {
-        // Only pause after the play promise has resolved to avoid interruption error
         promise.then(() => {
           sound.pause();
           sound.currentTime = 0;
@@ -73,23 +251,54 @@ class SoundManager {
         sound.pause();
         sound.currentTime = 0;
       }
-      if (key === 'bgm') this.bgmPlaying = false;
     }
   }
 
   toggleMute() {
     this.muted = !this.muted;
-    Object.values(this.sounds).forEach(s => s.pause());
-    if (!this.muted && this.hasInteracted) {
+    this.applyVolumes();
+    this.saveVolumes();
+    
+    // If unmuting, resume background music
+    if (!this.muted && !this.bgmPlaying && this.hasInteracted) {
       this.play('bgm');
-    } else {
-      this.bgmPlaying = false;
+    } else if (this.muted && this.bgmPlaying) {
+      this.stop('bgm');
     }
+    
+    console.log('🔊 Mute toggled:', this.muted ? 'MUTED' : 'UNMUTED');
     return this.muted;
   }
 
   isMuted() {
     return this.muted;
+  }
+
+  isBgmPlaying() {
+    return this.bgmPlaying;
+  }
+
+  autoPlayBgm() {
+    // Attempt to start background music
+    if (!this.bgmPlaying && !this.muted && this.hasInteracted) {
+      console.log('🎵 Auto-starting background music...');
+      this.play('bgm');
+    } else if (this.hasInteracted) {
+      console.log('🎵 BGM status - Playing:', this.bgmPlaying, 'Muted:', this.muted);
+    }
+  }
+
+  forceBgmStart() {
+    // For explicit user actions - forces music start after interaction
+    console.log('🎵 Force starting BGM after user interaction');
+    this.hasInteracted = true;
+    if (!this.muted) {
+      this.play('bgm');
+    }
+  }
+
+  stopBgm() {
+    this.stop('bgm');
   }
 }
 

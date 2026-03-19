@@ -84,6 +84,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
   const handleCreateRoom = (name: string, bet: number) => {
     setCreateModalOpen(false);
     const roomId = `custom-${Date.now()}?name=${encodeURIComponent(name)}&minBet=${bet}`;
+    soundManager.forceBgmStart(); // Start background music when creating room
     if (onJoinGame) {
         onJoinGame(roomId);
     } else {
@@ -97,6 +98,7 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
 
   const handleGameStart = (roomId: string) => {
     soundManager.play('start');
+    soundManager.forceBgmStart(); // Start background music on game start
     if (onJoinGame) {
         onJoinGame(roomId);
     } else {
@@ -177,10 +179,10 @@ const Home: React.FC<HomeProps> = ({ user, onJoinGame }) => {
              <div className="absolute -top-4 -right-4 p-4 opacity-5 group-hover:opacity-100 group-hover:text-neon-pink transition-all duration-500 transform group-hover:scale-110">
                <svg className="w-16 h-16 md:w-20 md:h-20" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.699-3.181a1 1 0 111.772.954l-2.405 4.505c.686.678 1.157 1.595 1.285 2.618l.895.045a1 1 0 11-.098 1.998l-.895-.045c-.477 2.112-2.316 3.654-4.52 3.73l-.223 3.34A1 1 0 0110 19l.223-3.34c-2.204-.076-4.043-1.618-4.52-3.73l-.895.045a1 1 0 01-.098-1.998l.895-.045c.128-1.023.6-1.94 1.285-2.618L4.577 3.475a1 1 0 111.772-.954L8 5.701V3.5a1 1 0 011-1z" clipRule="evenodd"/></svg>
              </div>
-             <div className="text-neon-pink font-arcade text-xl md:text-2xl mb-1 z-10">GRAND PRIX</div>
+             <div className="text-neon-pink font-arcade text-xl md:text-2xl mb-1 z-10">TOURNAMENT</div>
              <div className="w-6 h-0.5 bg-neon-pink mb-3 md:mb-4 group-hover:w-20 transition-all duration-500"></div>
              <p className="text-slate-400 font-mono text-[10px] md:text-xs leading-relaxed mb-4 md:mb-6 flex-grow z-10">
-               100 Players • 10 Groups • 1 Grand Winner. Watch all groups spin. Winner takes all!
+               100 Players • 20 Groups • 5 Per Group • 1 Grand Winner. Watch all groups spin. Winner takes all!
              </p>
              <button className="w-full py-2.5 md:py-3 border border-neon-pink text-neon-pink font-arcade uppercase text-[10px] md:text-sm tracking-widest hover:bg-neon-pink hover:text-black transition-all z-10">
                ENTER

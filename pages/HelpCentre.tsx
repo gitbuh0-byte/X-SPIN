@@ -36,7 +36,7 @@ const HelpCentre: React.FC = () => {
       title: '🎡 Gameplay & Rules',
       items: [
         { q: 'What is BLITZ mode?', a: 'BLITZ is a fast-paced game with 15 players. Choose your color, spin the wheel, and win!' },
-        { q: 'How does GRAND PRIX work?', a: 'GRAND PRIX features 100 players divided into 10 groups. Each group competes separately, and winners compete in the final round.' },
+        { q: 'How does TOURNAMENT work?', a: 'TOURNAMENT features 100 players divided into 20 groups of 5. Each group has 1 winner (20 advance). Then 4 groups of 5 spin, with 1 winner per group (4 advance to finals). Top 4 compete for the Grand Prize.' },
         { q: 'Can I play multiple games at once?', a: 'No, you can only play one game at a time. Finish or exit the current game to start a new one.' },
         { q: 'What happens if I disconnect?', a: 'Your game will pause. Reconnect within 5 minutes to resume. After 5 minutes, you forfeit.' }
       ]

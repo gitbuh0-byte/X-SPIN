@@ -16,13 +16,27 @@ interface TournamentRoomProps {
 
 const ENTRY_FEE = 10;
 const TOTAL_PLAYERS = 100;
-const GROUPS_COUNT = 10;
-const PLAYERS_PER_GROUP = 10;
+const GROUPS_COUNT = 20;
+const PLAYERS_PER_GROUP = 5;
 
-// 10 segments - one for each group
-const TOURNAMENT_SEGMENTS = COLORS.slice(0, 10).map((color, idx) => ({
+// Round 1 & Round 2: 5 segments - one for each player in the group/QF
+const TOURNAMENT_SEGMENTS_ROUND1_2 = Array.from({ length: 5 }).map((_, idx) => ({
+  label: `P${idx + 1}`,
+  color: COLORS[idx % COLORS.length],
+  value: idx
+}));
+
+// Final Round: 4 segments - one for each finalist
+const TOURNAMENT_SEGMENTS_FINAL = Array.from({ length: 4 }).map((_, idx) => ({
+  label: `F${idx + 1}`,
+  color: COLORS[idx % COLORS.length],
+  value: idx
+}));
+
+// Legacy: 20 segments - one for each group (kept for reference/backward compatibility)
+const TOURNAMENT_SEGMENTS = Array.from({ length: 20 }).map((_, idx) => ({
   label: `G${idx + 1}`,
-  color,
+  color: COLORS[idx % COLORS.length],
   value: idx
 }));
 
@@ -30,8 +44,8 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const navigate = useNavigate();
   const mounted = useRef(true);
 
-  // Phase: BROWSE -> BET_PROMPT -> COLOR_ASSIGN -> ROOM_ASSIGN -> BRACKET_VIEW -> GROUPS -> [WINNER_COUNTDOWN -> FINAL_COLOR -> FINAL_SPIN_COUNTDOWN] -> FINAL -> FINAL_RESULT -> PLAY_AGAIN
-  const [phase, setPhase] = useState<'BROWSE' | 'BET_PROMPT' | 'COLOR_ASSIGN' | 'ROOM_ASSIGN' | 'BRACKET_VIEW' | 'GROUPS' | 'WINNER_COUNTDOWN' | 'FINAL_COLOR' | 'FINAL_SPIN_COUNTDOWN' | 'FINAL' | 'FINAL_RESULT' | 'PLAY_AGAIN' | 'ELIM_LOSE'>('BROWSE');
+  // Phase: BROWSE -> BET_PROMPT -> COLOR_ASSIGN -> ROOM_ASSIGN -> BRACKET_VIEW -> LOBBY -> GROUPS -> QUARTERFINALS -> FINAL_COLOR -> FINAL_PREP -> FINAL -> FINAL_RESULT -> (back to BROWSE or ELIM_LOSE if lose)
+  const [phase, setPhase] = useState<'BROWSE' | 'BET_PROMPT' | 'COLOR_ASSIGN' | 'ROOM_ASSIGN' | 'BRACKET_VIEW' | 'LOBBY' | 'GROUPS' | 'QUARTERFINALS' | 'FINAL_COLOR' | 'FINAL_PREP' | 'FINAL' | 'FINAL_RESULT' | 'ELIM_LOSE' | 'GROUP_RESULT'>('BROWSE');
   
   // Tournament data
   const [groups, setGroups] = useState<Array<{ groupNumber: number; players: Player[]; totalPot: number }>>([]);
@@ -77,6 +91,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   // Initialize groups and assign user on mount
   useEffect(() => {
     if (groups.length === 0 && mounted.current) {
+      // Start background music when entering tournament room
+      soundManager.play('bgm');
+      
       const assignedGroup = Math.floor(Math.random() * GROUPS_COUNT) + 1;
       const assignedPositionInGroup = Math.floor(Math.random() * PLAYERS_PER_GROUP);
       const assignedColor = COLORS[assignedPositionInGroup % COLORS.length];
@@ -140,6 +157,10 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     if (countdown === 0 && countdownActive) {
       setCountdownActive(false);
       if (phase === 'GROUPS') startGroupSpin();
+      if (phase === 'QUARTERFINALS') {
+        // auto-start the quarterfinals spin
+        setSpinning(true);
+      }
       if (phase === 'FINAL_PREP') {
         // start the final spin
         setPhase('FINAL');
@@ -178,7 +199,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const startGroupSpin = () => {
     // Single simultaneous spin for all groups once every player has placed their bet
     if (groups.length === 0) return;
-    const t = Math.floor(Math.random() * TOURNAMENT_SEGMENTS.length);
+    const t = Math.floor(Math.random() * TOURNAMENT_SEGMENTS_ROUND1_2.length);
     setTargetIndex(t);
     setSpinning(true);
   };
@@ -187,7 +208,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     // Only players whose assigned color matches the winning wheel color advance
     setSpinning(false);
     
-    const winningColor = TOURNAMENT_SEGMENTS[targetIndex].color;
+    const winningColor = TOURNAMENT_SEGMENTS_ROUND1_2[targetIndex].color;
     
     // For each group, select a player only if their color matches the winning color
     const winners = groups.map((g) => {
@@ -207,11 +228,59 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
     const userIsWinner = winners.some(w => w.id === user.id);
     if (userIsWinner) {
-      // show winners animation and start a 5s countdown before final
+      // show winners animation and start a 5s countdown before quarterfinals
       setWinnerCountdown(5);
     } else {
       // show winners overlay but start a 5s countdown for losers then route to ELIM_LOSE
       // rely on a React effect to drive the countdown reliably
+      setLoserCountdown(5);
+    }
+  };
+
+  const proceedToQuarterfinals = () => {
+    // 20 winners are split into 4 groups of 5
+    // Each group spins to select 1 winner → 4 winners for finals
+    // PRESERVE original winning colors - do NOT reassign!
+    setAnnouncing(false);
+    setPhase('QUARTERFINALS');
+    setCountdown(3);
+    setCountdownActive(true);
+    const t = Math.floor(Math.random() * TOURNAMENT_SEGMENTS_ROUND1_2.length);
+    setTargetIndex(t);
+  };
+
+  const onQuarterfinalSpinEnd = () => {
+    setSpinning(false);
+    
+    // Get the winning color from the spin
+    const winningColor = TOURNAMENT_SEGMENTS_ROUND1_2[targetIndex].color;
+    
+    // From 20 winners, select 4 winners (1 from each group of 5)
+    // Winners are divided: indices 0-4, 5-9, 10-14, 15-19
+    const quarterfinalists = [];
+    for (let i = 0; i < 4; i++) {
+      const groupStart = i * 5;
+      const groupEnd = groupStart + 5;
+      const qfGroup = groupWinners.slice(groupStart, groupEnd);
+      // Select only players whose assigned color matches the winning color
+      const playersWithWinningColor = qfGroup.filter(p => p.assignedColor === winningColor);
+      if (playersWithWinningColor.length > 0) {
+        const winner = playersWithWinningColor[Math.floor(Math.random() * playersWithWinningColor.length)];
+        quarterfinalists.push(winner);
+      }
+    }
+    
+    setGroupWinners(quarterfinalists);
+    setDisplayedWinners(quarterfinalists);
+    setAnnouncing(true);
+    soundManager.play('win');
+
+    const userIsWinner = quarterfinalists.some(w => w.id === user.id);
+    if (userIsWinner) {
+      // show winners animation and start a 3s countdown before final
+      setWinnerCountdown(3);
+    } else {
+      // show winners overlay but start a 5s countdown for losers then route to ELIM_LOSE
       setLoserCountdown(5);
     }
   };
@@ -222,7 +291,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     if (loserCountdown <= 0) {
       setAnnouncing(false);
       setLoserCountdown(null);
-      setPhase('GROUP_RESULT');
+      setPhase('ELIM_LOSE');
       return;
     }
     const t = setTimeout(() => setLoserCountdown(c => (c !== null ? c - 1 : null)), 1000);
@@ -266,8 +335,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     if (userIsWinner) {
       const timer = setTimeout(() => {
         setAnnouncing(false);
-        const reassigned = groupWinners.map((w, idx) => ({ ...w, assignedColor: COLORS[idx % COLORS.length] }));
-        setGroupWinners(reassigned);
+        // PRESERVE original winning colors - do NOT reassign!
         setPhase('FINAL_COLOR');
         setFinalColorCountdown(5);
       }, 3000);
@@ -338,48 +406,58 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     <div className="w-full h-screen bg-gradient-to-b from-slate-900 to-black text-white flex flex-col overflow-hidden">
       {/* Main Header - Always visible except on BROWSE */}
       {phase !== 'BROWSE' && (
-        <div className="bg-gradient-to-r from-neon-gold/20 via-black to-neon-pink/20 border-b-2 border-neon-gold/60 shadow-[0_0_30px_rgba(255,215,0,0.4)] px-2 sm:px-4 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
+        <div className="bg-gradient-to-r from-neon-gold/15 via-black to-neon-pink/15 border-b-2 border-neon-gold/40 shadow-[0_0_30px_rgba(255,215,0,0.3)] px-2 sm:px-4 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2 backdrop-blur-sm">
           <div className="min-w-0">
-            <div className="text-2xl sm:text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan whitespace-nowrap animate-pulse drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] font-black tracking-wider">🏆 GRAND PRIX 🏆</div>
+            <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan whitespace-nowrap animate-pulse drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] font-black tracking-wider">🏆 TOURNAMENT</div>
           </div>
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] sm:text-xs text-slate-400">Your Balance</div>
-            <div className="text-neon-green font-arcade text-base sm:text-lg">${user.balance.toLocaleString()}</div>
+            <div className="text-[10px] sm:text-xs text-slate-400 font-arcade tracking-wider uppercase">Your Balance</div>
+            <div className="text-neon-green font-arcade text-base sm:text-xl font-black drop-shadow-[0_0_10px_rgba(0,255,0,0.5)]">${user.balance.toLocaleString()}</div>
           </div>
         </div>
       )}
 
       {/* Content Area */}
-      {/* GROUPS Phase: 10 wheels spinning (invisible), only player's room wheel visible */}
+      {/* GROUPS Phase: 20 wheels spinning (invisible), only player's room wheel visible */}
       {phase === 'GROUPS' && (
         <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-16 sm:pt-24`}>
           <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
-            {/* Render all 10 group wheels, but only show the player's room wheel */}
-            {TOURNAMENT_SEGMENTS.map((segment, groupIdx) => (
-              <div
-                key={`wheel-${groupIdx}`}
-                className={groupIdx === (userGroup - 1) ? 'block' : 'hidden'}
-              >
-                <SpinWheel
-                  segments={TOURNAMENT_SEGMENTS}
-                  spinning={spinning}
-                  targetIndex={targetIndex}
-                  onSpinEnd={onGroupSpinEnd}
-                  themeColor="neon-cyan"
-                  playerColor={userColor}
-                />
-              </div>
-            ))}
+            {/* Player's group wheel for current spin */}
+            <SpinWheel
+              segments={TOURNAMENT_SEGMENTS_ROUND1_2}
+              spinning={spinning}
+              targetIndex={targetIndex}
+              onSpinEnd={onGroupSpinEnd}
+              themeColor="neon-cyan"
+              playerColor={userColor}
+            />
           </div>
         </div>
       )}
 
-      {/* FINAL Phase: Shared wheel showing all 10 finalists */}
+      {/* QUARTERFINALS Phase: Shared wheel with 5 players per group */}
+      {phase === 'QUARTERFINALS' && (
+        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-16 sm:pt-24`}>
+          <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
+            {/* Quarterfinals wheel for current spin */}
+            <SpinWheel
+              segments={TOURNAMENT_SEGMENTS_ROUND1_2}
+              spinning={spinning}
+              targetIndex={targetIndex}
+              onSpinEnd={onQuarterfinalSpinEnd}
+              themeColor="neon-pink"
+              playerColor={userColor}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* FINAL Phase: Shared wheel with 4 finalists */}
       {phase === 'FINAL' && (
         <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-0`}>
           <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
             <SpinWheel
-              segments={groupWinners.map((w, i) => ({ label: w.username.slice(0,2).toUpperCase(), color: w.assignedColor, value: i }))}
+              segments={TOURNAMENT_SEGMENTS_FINAL}
               spinning={finalSpinning}
               targetIndex={finalTarget}
               onSpinEnd={onFinalSpinEnd}
@@ -417,8 +495,8 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* Trophy announcement removed */}
 
-      {/* Show custom tournament winner animation when winners are announced (during GROUP_RESULT for winners and losers) */}
-      {announcing && displayedWinners.length > 0 && phase === 'GROUP_RESULT' && (
+      {/* Show custom tournament winner animation when winners are announced */}
+      {announcing && displayedWinners.length > 0 && (phase === 'GROUP_RESULT' || phase === 'QUARTERFINALS') && (
         <TournamentWinnerAnimation
           isUserWinner={displayedWinners.some(dw => dw.id === user.id)}
           winnerCount={displayedWinners.length}
@@ -426,7 +504,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
       )}
 
       {/* Show winner countdown during announcement phase - Vegas style with clear visibility */}
-      {announcing && displayedWinners.some(dw => dw.id === user.id) && winnerCountdown !== null && phase === 'GROUPS' && (
+      {announcing && displayedWinners.some(dw => dw.id === user.id) && winnerCountdown !== null && (phase === 'GROUPS' || phase === 'QUARTERFINALS') && (
         <div className="fixed inset-0 z-[350] pointer-events-none flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="text-center px-4">
             {/* Large Countdown Timer */}
@@ -438,13 +516,13 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
             
             {/* Main Announcement Text */}
             <div className="text-2xl sm:text-4xl font-arcade font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-neon-green mb-4 tracking-wider drop-shadow-[0_0_30px_rgba(0,255,255,0.6)]">
-              🎊 ADVANCING TO FINALS 🎊
+              {phase === 'QUARTERFINALS' ? '🏆 ADVANCING TO FINALS' : '🎊 ADVANCING TO ROUND 2 🎊'}
             </div>
             
             {/* Finalists Grid - Clear and Visible */}
             <div className="max-w-2xl bg-black/60 border border-neon-pink/50 p-4 sm:p-6 shadow-[0_0_40px_rgba(255,0,128,0.3)]">
-              <div className="text-sm sm:text-base font-arcade text-neon-pink mb-3">TOP 10 WINNERS</div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="text-sm sm:text-base font-arcade text-neon-pink mb-3">{phase === 'QUARTERFINALS' ? 'SEMIFINALISTS (4)' : 'TOP 10 WINNERS'}</div>
+              <div className={`grid ${phase === 'QUARTERFINALS' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-5'} gap-2`}>
                 {displayedWinners.map((w, idx) => (
                   <div 
                     key={w.id}
@@ -466,23 +544,43 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* Show winner proceed button when countdown ends */}
       {showWinnerProceed && phase === 'GROUPS' && (
-        <div className="fixed inset-0 z-[350] pointer-events-auto flex items-center justify-center p-4">
-          <div className="bg-black/90 border border-neon-pink p-6 sm:p-8 text-center max-w-sm w-full">
-            <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🎊</div>
-            <div className="text-xl sm:text-2xl font-arcade text-neon-pink mb-2">YOU'RE IN!</div>
-            <div className="text-xs sm:text-sm text-slate-300 mb-4 sm:mb-6">You've advanced to the final round with 9 other winners.</div>
+        <div className="fixed inset-0 z-[350] pointer-events-auto flex items-center justify-center p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-slate-900/95 via-black/95 to-slate-900/90 border-2 border-neon-pink/50 rounded-xl p-6 sm:p-8 text-center max-w-sm w-full shadow-[0_0_40px_rgba(255,0,128,0.3)]">
+            <div className="text-6xl sm:text-7xl mb-4 sm:mb-5 animate-bounce">🎊</div>
+            <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan mb-3 sm:mb-4 font-black tracking-wider">TOP 20!</div>
+            <div className="text-sm sm:text-base text-slate-300 mb-6 sm:mb-8 leading-relaxed">You've made the top 20! Ready for the Quarterfinals tournament?</div>
+            <button
+              onClick={() => {
+                soundManager.play('click');
+                setShowWinnerProceed(false);
+                proceedToQuarterfinals();
+              }}
+              className="w-full px-6 sm:px-8 py-3 sm:py-4 text-neon-green border-2 border-neon-green font-arcade text-base sm:text-lg font-black hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,0,0.6)] transition-all duration-300 rounded-lg"
+            >
+              Proceed to Quarterfinals
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Show winner proceed button for Quarterfinals winners */}
+      {showWinnerProceed && phase === 'QUARTERFINALS' && (
+        <div className="fixed inset-0 z-[350] pointer-events-auto flex items-center justify-center p-4 sm:p-6">
+          <div className="bg-gradient-to-br from-slate-900/95 via-black/95 to-slate-900/90 border-2 border-neon-pink/50 rounded-xl p-6 sm:p-8 text-center max-w-sm w-full shadow-[0_0_40px_rgba(255,0,128,0.3)]">
+            <div className="text-6xl sm:text-7xl mb-4 sm:mb-5 animate-bounce">🏆</div>
+            <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan mb-3 sm:mb-4 font-black tracking-wider">SEMIFINALIST!</div>
+            <div className="text-sm sm:text-base text-slate-300 mb-6 sm:mb-8 leading-relaxed">You've made it to the Grand Finals with 3 other champions!</div>
             <button
               onClick={() => {
                 setShowWinnerProceed(false);
                 setAnnouncing(false);
-                const reassigned = groupWinners.map((w, idx) => ({ ...w, assignedColor: COLORS[idx % COLORS.length] }));
-                setGroupWinners(reassigned);
+                // PRESERVE original winning colors - do NOT reassign!
                 setPhase('FINAL_COLOR');
                 setFinalColorCountdown(5);
               }}
-              className="px-6 sm:px-8 py-2 sm:py-3 text-neon-pink font-arcade text-base sm:text-lg hover:bg-neon-pink hover:text-black transition w-full border border-neon-pink"
+              className="w-full px-6 sm:px-8 py-3 sm:py-4 text-neon-green border-2 border-neon-green font-arcade text-base sm:text-lg font-black hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,0,0.6)] transition-all duration-300 rounded-lg"
             >
-              Proceed to Final
+              Proceed to Grand Finals
             </button>
           </div>
         </div>
@@ -500,26 +598,26 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
         {phase === 'BROWSE' && (
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="text-center w-full max-w-md">
-              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">🎰</div>
-              <div className="text-4xl sm:text-5xl font-arcade text-neon-pink mb-2 drop-shadow-[0_0_10px_rgba(255,0,128,0.8)] animate-pulse">GRAND PRIX</div>
-              <div className="text-neon-cyan text-base sm:text-lg mb-4 sm:mb-6 font-arcade tracking-wider drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">100 Players • 10 Groups • Winner Takes All</div>
-              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-pink/5 border border-neon-pink p-4 sm:p-6 mb-6 sm:mb-8 shadow-[0_0_20px_rgba(255,0,128,0.3)]">
-                <div className="text-xs sm:text-sm text-neon-cyan space-y-2 font-arcade tracking-wider">
-                  <div className="text-neon-pink">✓ 10 groups of 10 players</div>
-                  <div className="text-neon-green">✓ Win your group → Join Final Round</div>
-                  <div className="text-neon-pink">✓ Grand Champion wins ${totalPot.toLocaleString()}</div>
+              <div className="text-5xl sm:text-6xl mb-4 sm:mb-6 animate-bounce">🎰</div>
+              <div className="text-4xl sm:text-5xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan mb-3 drop-shadow-[0_0_20px_rgba(255,215,0,0.6)] animate-pulse font-black tracking-wider">TOURNAMENT</div>
+              <div className="text-neon-cyan text-base sm:text-lg mb-6 sm:mb-8 font-arcade tracking-wider drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">200 Players • 20 Groups • Winner Takes All</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-5 sm:p-7 mb-7 sm:mb-9 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
+                <div className="text-xs sm:text-sm text-slate-300 space-y-3 font-arcade tracking-wider">
+                  <div className="flex items-center gap-2"><span className="text-neon-green text-lg">✓</span><span>20 groups of 5 players</span></div>
+                  <div className="flex items-center gap-2"><span className="text-neon-cyan text-lg">✓</span><span>Win your group → Join Final Round</span></div>
+                  <div className="flex items-center gap-2"><span className="text-neon-gold text-lg">✓</span><span>Grand Champion wins <span className="font-black text-neon-gold">${totalPot.toLocaleString()}</span></span></div>
                 </div>
               </div>
-              <div className="flex gap-2 sm:gap-3">
+              <div className="flex gap-3 sm:gap-4 flex-col sm:flex-row justify-center items-center w-full">
                 <button
                   onClick={() => { soundManager.play('click'); window.location.hash = '/#/dashboard'; }}
-                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border border-neon-pink text-neon-pink font-arcade text-sm sm:text-base hover:bg-neon-pink hover:text-black transition-all shadow-lg"
+                  className="px-8 sm:px-10 py-3 sm:py-3.5 border-2 border-slate-500 text-slate-300 font-arcade text-sm sm:text-base hover:border-neon-pink hover:text-neon-pink transition-all duration-300 rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] font-bold w-full sm:w-auto"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); startBetFlow(); }}
-                  className="flex-1 px-6 sm:px-8 py-2.5 sm:py-3 text-neon-green font-arcade text-sm sm:text-base hover:bg-neon-green hover:text-black transition-all font-black shadow-[0_0_20px_rgba(0,255,0,0.5)] hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] border border-neon-green"
+                  className="px-8 sm:px-10 py-3 sm:py-3.5 text-neon-green border-2 border-neon-green font-arcade text-sm sm:text-base font-black transition-all duration-300 rounded-lg hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] w-full sm:w-auto"
                 >
                   JOIN TOURNAMENT
                 </button>
@@ -532,29 +630,36 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
         {phase === 'BET_PROMPT' && (
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="text-center max-w-sm w-full">
-              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">💰</div>
-              <div className="text-2xl sm:text-3xl font-arcade text-neon-pink mb-4 drop-shadow-[0_0_10px_rgba(255,0,128,0.8)]">Place Your Bet</div>
-              <div className="bg-gradient-to-b from-neon-pink/10 to-neon-pink/5 border border-neon-pink p-4 sm:p-6 mb-4 sm:mb-6 shadow-[0_0_20px_rgba(255,0,128,0.3)]">
-                <div className="text-neon-pink mb-2 text-sm font-arcade tracking-wider uppercase">Entry Fee</div>
-                <div className="text-4xl sm:text-5xl font-arcade text-neon-cyan mb-4 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]"><span className="text-neon-pink">$</span>{ENTRY_FEE}</div>
-                <div className="text-xs text-neon-pink mb-2 font-arcade">
-                  Current Balance: <span className="text-neon-green drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]">${user.balance}</span>
+              <div className="text-6xl sm:text-7xl mb-5 sm:mb-6 animate-bounce">💰</div>
+              <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan mb-5 font-black tracking-wider">Place Your Bet</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-6 sm:p-8 mb-6 sm:mb-8 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
+                <div className="text-slate-400 mb-3 text-xs font-arcade tracking-wider uppercase">Entry Fee</div>
+                <div className="text-5xl sm:text-6xl font-arcade text-neon-cyan mb-5 drop-shadow-[0_0_15px_rgba(0,255,255,0.5)] font-black"><span className="text-neon-gold">$</span>{ENTRY_FEE}</div>
+                <div className="text-sm text-slate-300 mb-1 font-arcade">
+                  Your Balance: <span className={`font-black ${user.balance >= ENTRY_FEE ? 'text-neon-green' : 'text-red-400'}`}>${user.balance}</span>
+                </div>
+                <div className={`text-xs font-arcade mt-2 px-3 py-2 rounded-lg ${
+                  user.balance >= ENTRY_FEE 
+                    ? 'bg-neon-green/20 text-neon-green border border-neon-green/40' 
+                    : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                }`}>
+                  {user.balance >= ENTRY_FEE ? '✓ Sufficient funds' : '⚠ Insufficient funds'}
                 </div>
               </div>
-              <div className="flex gap-2 sm:gap-3 justify-center">
+              <div className="flex gap-3 sm:gap-4 flex-col sm:flex-row justify-center items-center w-full">
                 <button
                   onClick={() => { soundManager.play('click'); setPhase('BROWSE'); }}
-                  className="px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black shadow-lg whitespace-nowrap font-black"
+                  className="px-8 sm:px-10 py-3 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-slate-500 text-slate-300 hover:border-neon-pink hover:text-neon-pink rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] whitespace-nowrap font-bold duration-300 w-full sm:w-auto"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); confirmBet(); }}
                   disabled={user.balance < ENTRY_FEE}
-                  className={`px-6 sm:px-8 py-2.5 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 shadow-lg font-black whitespace-nowrap ${
+                  className={`px-8 sm:px-10 py-3 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 rounded-lg whitespace-nowrap font-black duration-300 w-full sm:w-auto ${
                     user.balance < ENTRY_FEE
-                      ? 'border-slate-600 text-slate-600 cursor-not-allowed'
-                      : 'border-neon-green text-neon-green hover:bg-neon-green hover:text-black shadow-[0_0_15px_rgba(0,255,0,0.6)]'
+                      ? 'border-slate-600 text-slate-600 cursor-not-allowed opacity-50'
+                      : 'border-neon-green text-neon-green hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_25px_rgba(0,255,0,0.6)]'
                   }`}
                 >
                   CONFIRM
@@ -566,27 +671,27 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* COLOR_ASSIGN - Color Assignment */}
         {phase === 'COLOR_ASSIGN' && (
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <div className="text-center max-w-sm w-full">
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🎨</div>
-              <div className="text-xl sm:text-2xl font-arcade text-neon-pink mb-4 sm:mb-6">Color Assigned</div>
-              <div className="bg-slate-800/50 border border-neon-pink/30 p-4 sm:p-8 mb-4 sm:mb-6">
-                <div className="text-slate-400 mb-4 text-sm">Your Tournament Color</div>
-                <div className="flex justify-center gap-4 items-center mb-4 sm:mb-6">
+              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🎨</div>
+              <div className="text-2xl sm:text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-neon-pink mb-4 font-black tracking-wider">Color Assigned</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-cyan/40 rounded-xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+                <div className="text-slate-400 mb-3 text-xs font-arcade tracking-wider uppercase">Your Tournament Color</div>
+                <div className="flex justify-center items-center mb-4">
                   <div
-                    className="w-14 h-14 sm:w-16 sm:h-16 border-2 border-white shadow-lg"
-                    style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-4 border-white shadow-[0_0_30px_rgba(255,255,255,0.3)] transform hover:scale-105 transition-transform duration-300"
+                    style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX], boxShadow: `0_0_40px_${COLOR_HEX[userColor as keyof typeof COLOR_HEX]}66` }}
                   />
-                  <div className="text-2xl sm:text-3xl font-arcade capitalize">{userColor}</div>
                 </div>
-                <div className="text-[10px] sm:text-xs text-slate-400 bg-neon-green/20 border border-neon-green/30 p-3">
-                  <div className="text-neon-green font-arcade mb-1">✓ Bet Locked: ${ENTRY_FEE}</div>
-                  Your color is fixed for this tournament
+                <div className="text-xl sm:text-2xl font-arcade capitalize text-neon-cyan mb-4 font-black tracking-wider">{userColor}</div>
+                <div className="text-xs font-arcade text-slate-300 bg-neon-green/20 border-2 border-neon-green/40 rounded-lg p-2.5 sm:p-3">
+                  <div className="text-neon-green font-black mb-1">✓ Bet Locked: ${ENTRY_FEE}</div>
+                  <div className="text-slate-400 text-[11px] sm:text-xs">Your color is fixed for this tournament</div>
                 </div>
               </div>
               <button
                 onClick={() => { soundManager.play('click'); proceedFromColor(); }}
-                className="w-full px-6 sm:px-8 py-3 sm:py-4 text-neon-pink font-arcade text-lg sm:text-xl font-bold hover:bg-neon-pink hover:text-black transition shadow-lg border border-neon-pink"
+                className="w-full px-6 sm:px-8 py-2.5 sm:py-3 text-neon-cyan border-2 border-neon-cyan font-arcade text-sm sm:text-base font-black hover:bg-gradient-to-r hover:from-neon-cyan hover:to-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] transition-all duration-300 rounded-lg"
               >
                 Proceed
               </button>
@@ -596,26 +701,26 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* ROOM_ASSIGN - Room Assignment */}
         {phase === 'ROOM_ASSIGN' && (
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center max-w-sm">
-              <div className="text-5xl mb-4">🚪</div>
-              <div className="text-2xl font-arcade text-neon-pink mb-6">Room Assigned</div>
-              <div className="bg-slate-800/50 border border-neon-pink/30 p-8 mb-6">
-                <div className="mb-6">
-                  <div className="text-slate-400 mb-2">Your Group</div>
-                  <div className="text-4xl font-arcade text-neon-cyan mb-4">GROUP {userGroup}</div>
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4">
+            <div className="text-center max-w-sm w-full">
+              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🚪</div>
+              <div className="text-2xl sm:text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-gold mb-4 font-black tracking-wider">Room Assigned</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-[0_0_30px_rgba(255,0,128,0.2)] space-y-3.5">
+                <div>
+                  <div className="text-slate-400 mb-1.5 text-xs font-arcade tracking-wider uppercase">Your Group</div>
+                  <div className="text-3xl sm:text-4xl font-arcade text-neon-cyan font-black drop-shadow-[0_0_25px_rgba(0,255,255,0.8)] animate-pulse" style={{ textShadow: '0 0 30px rgba(0,255,255,0.8), 0 0 60px rgba(0,255,255,0.5)' }}>GROUP {userGroup}</div>
                 </div>
-                <div className="mb-6">
-                  <div className="text-slate-400 mb-2">Room Number</div>
-                  <div className="text-3xl font-arcade text-neon-pink font-bold tracking-widest">{userRoom}</div>
+                <div className="border-t border-slate-700/50 pt-3">
+                  <div className="text-slate-400 mb-1.5 text-xs font-arcade tracking-wider uppercase">Room Number</div>
+                  <div className="text-3xl sm:text-4xl font-arcade text-neon-gold font-black tracking-wider drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]">{userRoom}</div>
                 </div>
-                <div className="text-xs text-slate-400 p-3">
-                  Waiting for other players...
+                <div className="text-xs font-arcade text-slate-400 bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+                  ⏳ Waiting for other players...
                 </div>
               </div>
               <button
                 onClick={() => { soundManager.play('click'); joinGameroom(); }}
-                className="w-full px-6 py-3 text-neon-pink font-arcade text-lg hover:bg-neon-pink hover:text-black transition font-bold border border-neon-pink"
+                className="w-full px-6 sm:px-8 py-2.5 sm:py-3 text-neon-pink border-2 border-neon-pink font-arcade text-sm sm:text-base font-black hover:bg-gradient-to-r hover:from-neon-pink hover:to-neon-gold hover:text-black hover:shadow-[0_0_30px_rgba(255,0,128,0.6)] transition-all duration-300 rounded-lg"
               >
                 Join Gameroom
               </button>
@@ -629,6 +734,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
             <TournamentBracketNew 
               groupNumber={userGroup}
               playersInGroup={PLAYERS_PER_GROUP}
+              userUsername={user.username}
               onProceedClick={() => {
                 soundManager.play('click');
                 setPhase('GROUPS');
@@ -657,19 +763,16 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
             <div className="hidden lg:flex w-80 bg-black/40 border border-neon-cyan/30 rounded overflow-y-auto flex-col flex-shrink-0">
               <div className="sticky top-0 bg-black/80 border-b border-neon-cyan/30 p-3">
                 <div className="text-neon-cyan font-arcade text-sm">📊 GROUPS</div>
-                <div className="text-neon-green text-xs mt-1">Spinning: Group {currentGroupIndex + 1}/10</div>
+                <div className="text-neon-green text-xs mt-1">Spinning: Group {currentGroupIndex + 1}/20</div>
               </div>
               <div className="flex-1 p-2 overflow-y-auto">
-                {groups.map((group) => (
-                  <div
-                    key={group.groupNumber}
-                    onClick={() => setExpandedGroup(expandedGroup === group.groupNumber ? null : group.groupNumber)}
-                    className={`mb-2 rounded border cursor-pointer transition ${
-                      group.groupNumber === userGroup
-                        ? 'bg-neon-gold/20 border-neon-gold shadow-lg shadow-neon-gold/50'
-                        : 'bg-slate-800/30 border-slate-600/30 hover:border-slate-500/50'
-                    }`}
-                  >
+                <div className="space-y-2">
+                  {groups.map((group) => (
+                    <div
+                      key={group.groupNumber}
+                      onClick={() => setExpandedGroup(expandedGroup === group.groupNumber ? null : group.groupNumber)}
+                      className={`mb-0 rounded cursor-pointer transition ${group.groupNumber === userGroup ? 'user-group-highlight' : 'bg-slate-800/30 border border-slate-600/30'}`}
+                    >
                     <div className="p-2 flex items-center justify-between">
                       <div className="font-arcade text-sm">
                         {group.groupNumber === userGroup && '👤 '}GROUP {group.groupNumber}
@@ -681,19 +784,18 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         {group.players.map((p) => (
                           <div
                             key={p.id}
-                            className={`flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] ${
-                              p.id === user.id ? 'bg-neon-gold/20 border border-neon-gold' : 'bg-slate-700/20'
-                            }`}
+                            className="flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] bg-slate-700/20"
                           >
                             <img src={p.avatar} alt={p.username} className="w-4 h-4 rounded-full" />
                             <span className="flex-1 truncate font-arcade">{p.username}</span>
-                            {p.id === user.id && <span className="text-neon-cyan">✓</span>}
+                            {p.id === user.id && <span className="text-neon-gold animate-pulse">✓</span>}
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             </div>
 
@@ -708,7 +810,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                 )}
                 
                 {spinning && (
-                  <div className="text-[9px] sm:text-xs text-neon-cyan font-arcade font-bold animate-pulse">Spinning... Group {currentGroupIndex + 1}/10</div>
+                  <div className="text-[9px] sm:text-xs text-neon-cyan font-arcade font-bold animate-pulse">Spinning... Group {currentGroupIndex + 1}/20</div>
                 )}
               </div>
 
@@ -750,7 +852,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               )}
               
               {spinning && (
-                <div className="text-sm sm:text-lg font-arcade text-neon-cyan mb-4 animate-pulse">Spinning... Group {currentGroupIndex + 1}/10</div>
+                <div className="text-sm sm:text-lg font-arcade text-neon-cyan mb-4 animate-pulse">Spinning... Group {currentGroupIndex + 1}/20</div>
               )}
 
               {/* Responsive Wheel Container */}
@@ -831,7 +933,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
               {/* Winners */}
               <div className="bg-black/80 p-3 max-h-32 overflow-y-auto">
-                <div className="text-neon-green font-arcade text-[10px] mb-2">WINNERS: {groupWinners.length}/10</div>
+                <div className="text-neon-green font-arcade text-[10px] mb-2">WINNERS: {groupWinners.length}/20</div>
                 <div className="space-y-1 text-[10px]">
                   {groupWinners.map((w, i) => (
                     <div key={w.id} className="flex items-center gap-1">
@@ -861,11 +963,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                       <div
                         key={group.groupNumber}
                         onClick={() => setExpandedGroup(expandedGroup === group.groupNumber ? null : group.groupNumber)}
-                        className={`rounded border cursor-pointer transition ${
-                          group.groupNumber === userGroup
-                            ? 'bg-neon-gold/20 border-neon-gold shadow-lg shadow-neon-gold/50'
-                            : 'bg-slate-800/30 border-slate-600/30 hover:border-slate-500/50'
-                        }`}
+                        className={`rounded cursor-pointer transition ${group.groupNumber === userGroup ? 'user-group-highlight' : 'bg-slate-800/30 border border-slate-600/30'}`}
                       >
                         <div className="p-2.5 flex items-center justify-between">
                           <div className="font-arcade text-sm">
@@ -878,13 +976,11 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                             {group.players.map((p) => (
                               <div
                                 key={p.id}
-                                className={`flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] ${
-                                  p.id === user.id ? 'bg-neon-gold/20 border border-neon-gold' : 'bg-slate-700/20'
-                                }`}
+                                className="flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] bg-slate-700/20"
                               >
                                 <img src={p.avatar} alt={p.username} className="w-4 h-4 rounded-full" />
                                 <span className="flex-1 truncate font-arcade">{p.username}</span>
-                                {p.id === user.id && <span className="text-neon-cyan">✓</span>}
+                                {p.id === user.id && <span className="text-neon-gold animate-pulse">✓</span>}
                               </div>
                             ))}
                           </div>
@@ -933,7 +1029,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                       </div>
                       <div className="pt-2 border-t border-neon-pink/20">
                         <span className="text-slate-400 text-xs">Your Group</span>
-                        <div className="font-arcade text-neon-cyan mt-1">GROUP {userGroup}</div>
+                        <div className="font-arcade text-neon-cyan mt-1 font-black drop-shadow-[0_0_25px_rgba(0,255,255,0.8)] animate-pulse" style={{ textShadow: '0 0 30px rgba(0,255,255,0.8), 0 0 60px rgba(0,255,255,0.5)' }}>GROUP {userGroup}</div>
                       </div>
                     </div>
                   </div>
@@ -999,6 +1095,353 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           </div>
         )}
 
+        {/* QUARTERFINALS - Quarterfinal Round Spinning */}
+        {phase === 'QUARTERFINALS' && (
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-2 lg:gap-4 p-2 lg:p-4">
+            {/* Left: Quarterfinal Groups Panel - Hidden on mobile */}
+            <div className="hidden lg:flex w-80 bg-black/40 border border-neon-pink/30 rounded overflow-y-auto flex-col flex-shrink-0">
+              <div className="sticky top-0 bg-black/80 border-b border-neon-pink/30 p-3">
+                <div className="text-neon-pink font-arcade text-sm">🏆 QUARTERFINALS</div>
+                <div className="text-neon-green text-xs mt-1">Spinning: Round 1/4</div>
+              </div>
+              <div className="flex-1 p-2 overflow-y-auto">
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, qfIdx) => {
+                    const groupStart = qfIdx * 5;
+                    const groupEnd = groupStart + 5;
+                    const qfGroup = groupWinners.slice(groupStart, groupEnd);
+                    const userInThisGroup = qfGroup.some(p => p.id === user.id);
+                    return (
+                      <div
+                        key={qfIdx}
+                        onClick={() => setExpandedGroup(expandedGroup === qfIdx + 100 ? null : qfIdx + 100)}
+                        className={`mb-0 rounded cursor-pointer transition ${userInThisGroup ? 'user-group-highlight' : 'bg-slate-800/30 border border-slate-600/30'}`}
+                      >
+                        <div className="p-2 flex items-center justify-between">
+                          <div className="font-arcade text-sm">
+                            {userInThisGroup && '👤 '}MATCH {qfIdx + 1}
+                          </div>
+                          <span className="text-xs text-slate-400">{expandedGroup === qfIdx + 100 ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedGroup === qfIdx + 100 && (
+                          <div className="border-t border-slate-600/30 p-2 bg-black/40">
+                            {qfGroup.map((p) => (
+                              <div
+                                key={p.id}
+                                className="flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] bg-slate-700/20"
+                              >
+                                <img src={p.avatar} alt={p.username} className="w-4 h-4 rounded-full" />
+                                <span className="flex-1 truncate font-arcade">{p.username}</span>
+                                {p.id === user.id && <span className="text-neon-gold animate-pulse">✓</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Center: Wheel + Mobile Controls */}
+            <div className="lg:hidden flex-1 flex flex-col items-center justify-center px-2 py-2 gap-3">
+              {/* Status counters area */}
+              <div className="flex flex-col items-center gap-0.5 flex-shrink-0 min-h-[20px]">
+                {countdownActive && countdown > 0 && (
+                  <div className="text-center">
+                    <div className="text-2xl font-arcade text-neon-pink animate-pulse">{countdown}</div>
+                  </div>
+                )}
+                
+                {spinning && (
+                  <div className="text-[9px] sm:text-xs text-neon-pink font-arcade font-bold animate-pulse">QUARTERFINALS Spinning...</div>
+                )}
+              </div>
+
+              {/* Responsive Wheel Container - Compact for mobile */}
+              <div className="flex items-center justify-center w-full max-w-sm h-56 flex-shrink-0">
+                <div className="w-full h-full" />
+              </div>
+
+              {/* Mobile Control Buttons - Below wheel */}
+              <div className="w-full flex gap-2 sm:gap-3 justify-center flex-shrink-0">
+                <button
+                  onClick={() => { soundManager.play('click'); setShowGroupsPanel(true); }}
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black whitespace-nowrap font-black"
+                >
+                  MATCHES
+                </button>
+                <button
+                  onClick={() => { soundManager.play('click'); setShowStatusPanel(true); }}
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-cyan text-neon-cyan hover:bg-neon-cyan hover:text-black whitespace-nowrap font-black"
+                >
+                  STATUS
+                </button>
+                <button
+                  onClick={() => { soundManager.play('click'); setShowChatPanel(true); }}
+                  className="px-5 sm:px-8 py-2.5 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider transition-all border border-neon-green text-neon-green hover:bg-neon-green hover:text-black whitespace-nowrap font-black"
+                >
+                  CHATS
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop Layout - Hidden on mobile */}
+            <div className="hidden lg:flex flex-1 flex-col items-center justify-center gap-4 sm:gap-6 px-2 sm:px-6">
+              {countdownActive && countdown > 0 && (
+                <div className="text-center mb-2 sm:mb-4">
+                  <div className="text-4xl sm:text-6xl font-arcade text-neon-pink animate-pulse">{countdown}</div>
+                  <div className="text-xs sm:text-sm text-slate-400 mt-2">Preparing Quarterfinals...</div>
+                </div>
+              )}
+              
+              {spinning && (
+                <div className="text-sm sm:text-lg font-arcade text-neon-pink mb-4 animate-pulse">Quarterfinals Spinning...</div>
+              )}
+
+              {/* Responsive Wheel Container */}
+              <div className="flex items-center justify-center w-full max-w-2xl aspect-square">
+                <div className="w-full h-full max-w-xl max-h-xl" />
+              </div>
+            </div>
+
+            {/* Right: Chat + Status - Hidden on mobile */}
+            <div className="hidden lg:flex w-80 bg-black/40 border border-neon-pink/30 rounded flex-col flex-shrink-0">
+              {/* Total Pot */}
+              <div className="p-3 border-b border-neon-pink/30">
+                <div className="text-neon-gold font-arcade text-[10px] mb-1">TOTAL POT</div>
+                <div className="text-neon-green font-arcade">${totalPot.toLocaleString()}</div>
+              </div>
+              {/* User Status */}
+              <div className="bg-black/80 border-b border-neon-pink/30 p-3">
+                <div className="text-neon-pink font-arcade text-sm mb-2">🎮 YOUR STATUS</div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-slate-400">Your Color:</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div
+                        className="w-4 h-4 rounded-full border border-white"
+                        style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                      />
+                      <span className="font-arcade capitalize">{userColor}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Stage:</span>
+                    <div className="font-arcade text-neon-pink">Quarterfinals 🏆</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chat */}
+              <div className="flex-1 border-b border-neon-pink/30 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
+                  {chatMessages.length === 0 ? (
+                    <div className="text-center text-slate-500 py-4">No messages</div>
+                  ) : (
+                    chatMessages.map((msg, i) => (
+                      <div key={i}>
+                        <div className="text-neon-pink font-arcade text-[10px]">{msg.user}</div>
+                        <div className="text-slate-300 ml-2 text-[11px]">{msg.msg}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="border-t border-neon-pink/30 p-2 flex gap-1">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && chatInput.trim()) {
+                        setChatMessages([...chatMessages, { user: user.username, msg: chatInput }]);
+                        setChatInput('');
+                      }
+                    }}
+                    placeholder="Say..."
+                    className="flex-1 bg-black/60 border border-neon-pink/30 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      if (chatInput.trim()) {
+                        setChatMessages([...chatMessages, { user: user.username, msg: chatInput }]);
+                        setChatInput('');
+                      }
+                    }}
+                    className="border border-neon-pink text-neon-pink text-xs px-2 py-1 hover:bg-neon-pink hover:text-black"
+                  >
+                    ✓
+                  </button>
+                </div>
+              </div>
+
+              {/* Winners */}
+              <div className="bg-black/80 p-3 max-h-32 overflow-y-auto">
+                <div className="text-neon-green font-arcade text-[10px] mb-2">COMPETING: {groupWinners.length}/20</div>
+                <div className="space-y-1 text-[10px]">
+                  {groupWinners.map((w, i) => (
+                    <div key={w.id} className="flex items-center gap-1">
+                      <span className="text-neon-gold font-arcade">Q{Math.floor(i / 5) + 1}:</span>
+                      <span className={w.id === user.id ? 'text-neon-pink' : 'text-slate-300'}>{w.username}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* QUARTERFINALS MODAL - Mobile Only */}
+            {showGroupsPanel && phase === 'QUARTERFINALS' && (
+              <div className="lg:hidden fixed inset-0 bg-black/80 z-50 flex items-end">
+                <div className="w-full bg-black/95 border-t border-neon-pink/30 rounded-t-lg max-h-[70vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-black/80 border-b border-neon-pink/30 p-4 flex justify-between items-center">
+                    <div className="text-neon-pink font-arcade">🏆 QUARTERFINAL MATCHES</div>
+                    <button
+                      onClick={() => { soundManager.play('click'); setShowGroupsPanel(false); }}
+                      className="text-neon-pink hover:text-white text-2xl leading-none"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {Array.from({ length: 4 }).map((_, qfIdx) => {
+                      const groupStart = qfIdx * 5;
+                      const groupEnd = groupStart + 5;
+                      const qfGroup = groupWinners.slice(groupStart, groupEnd);
+                      const userInThisGroup = qfGroup.some(p => p.id === user.id);
+                      return (
+                        <div
+                          key={qfIdx}
+                          onClick={() => setExpandedGroup(expandedGroup === qfIdx + 100 ? null : qfIdx + 100)}
+                          className={`rounded cursor-pointer transition ${userInThisGroup ? 'user-group-highlight' : 'bg-slate-800/30 border border-slate-600/30'}`}
+                        >
+                          <div className="p-2.5 flex items-center justify-between">
+                            <div className="font-arcade text-sm">
+                              {userInThisGroup && '👤 '}MATCH {qfIdx + 1}
+                            </div>
+                            <span className="text-xs text-slate-400">{expandedGroup === qfIdx + 100 ? '▼' : '▶'}</span>
+                          </div>
+                          {expandedGroup === qfIdx + 100 && (
+                            <div className="border-t border-slate-600/30 p-2 bg-black/40">
+                              {qfGroup.map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="flex items-center gap-2 p-1.5 mb-1 rounded text-[11px] bg-slate-700/20"
+                                >
+                                  <img src={p.avatar} alt={p.username} className="w-4 h-4 rounded-full" />
+                                  <span className="flex-1 truncate font-arcade">{p.username}</span>
+                                  {p.id === user.id && <span className="text-neon-pink animate-pulse">✓</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STATUS MODAL - Mobile Only */}
+            {showStatusPanel && phase === 'QUARTERFINALS' && (
+              <div className="lg:hidden fixed inset-0 bg-black/80 z-50 flex items-end">
+                <div className="w-full bg-black/95 border-t border-neon-cyan/30 rounded-t-lg max-h-[70vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-black/80 border-b border-neon-cyan/30 p-4 flex justify-between items-center">
+                    <div className="text-neon-cyan font-arcade">🎮 YOUR STATUS</div>
+                    <button
+                      onClick={() => { soundManager.play('click'); setShowStatusPanel(false); }}
+                      className="text-neon-cyan hover:text-white text-2xl leading-none"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {/* Total Pot */}
+                    <div className="bg-black/60 border border-neon-gold/30 rounded p-3">
+                      <div className="text-neon-gold font-arcade text-xs mb-2">TOTAL POT</div>
+                      <div className="text-lg sm:text-xl font-arcade font-black text-neon-green">${totalPot.toLocaleString()}</div>
+                    </div>
+                    {/* Your Details */}
+                    <div className="bg-black/60 border border-neon-cyan/30 rounded p-3 space-y-2">
+                      <div>
+                        <span className="text-slate-400 text-xs">Your Color</span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div
+                            className="w-6 h-6 rounded border-2 border-white"
+                            style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                          />
+                          <span className="font-arcade text-sm capitalize">{userColor}</span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-neon-cyan/20">
+                        <span className="text-slate-400 text-xs">Tournament Stage</span>
+                        <div className="font-arcade text-neon-pink mt-1 font-black">QUARTERFINALS 🏆</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CHAT MODAL - Mobile Only */}
+            {showChatPanel && phase === 'QUARTERFINALS' && (
+              <div className="lg:hidden fixed inset-0 bg-black/80 z-50 flex items-end">
+                <div className="w-full bg-black/95 border-t border-neon-green/30 rounded-t-lg max-h-[70vh] overflow-y-auto flex flex-col">
+                  <div className="sticky top-0 bg-black/80 border-b border-neon-green/30 p-4 flex justify-between items-center">
+                    <div className="text-neon-green font-arcade">💬 CHAT</div>
+                    <button
+                      onClick={() => { soundManager.play('click'); setShowChatPanel(false); }}
+                      className="text-neon-green hover:text-white text-2xl leading-none"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {chatMessages.length === 0 ? (
+                      <div className="text-center text-slate-500 py-8">No messages yet</div>
+                    ) : (
+                      chatMessages.map((msg, i) => (
+                        <div key={i} className="text-xs">
+                          <div className="text-neon-pink font-arcade text-[10px]">{msg.user}</div>
+                          <div className="text-slate-300 ml-2">{msg.msg}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="border-t border-neon-green/30 p-3 bg-black/60 flex gap-2">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && chatInput.trim()) {
+                          setChatMessages([...chatMessages, { user: user.username, msg: chatInput }]);
+                          setChatInput('');
+                        }
+                      }}
+                      placeholder="Say..."
+                      className="flex-1 bg-black/60 border border-neon-green/30 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        if (chatInput.trim()) {
+                          soundManager.play('click');
+                          setChatMessages([...chatMessages, { user: user.username, msg: chatInput }]);
+                          setChatInput('');
+                        }
+                      }}
+                      className="border border-neon-green text-neon-green px-2.5 py-1.5 hover:bg-neon-green hover:text-black text-xs font-bold transition"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* GROUP_RESULT - Tournament Flow Visualization */}
         {phase === 'GROUP_RESULT' && (
           <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto relative">
@@ -1006,34 +1449,34 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               {/* Tournament Flow Diagram */}
               <div className="space-y-6">
                 {/* Stage 2: Group Winners */}
-                <div className="bg-gradient-to-b from-slate-800/40 to-black/40 border border-neon-gold/50 rounded-lg p-6 relative">
-                  <div className="text-sm font-arcade text-slate-400 mb-4 uppercase tracking-wider">Stage 2: 10 Winners Selected</div>
+                <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-gold/40 rounded-xl p-6 sm:p-8 relative shadow-[0_0_30px_rgba(255,215,0,0.2)]">
+                  <div className="text-xs sm:text-sm font-arcade text-slate-300 mb-5 uppercase tracking-wider font-bold">🎯 Stage 2: 10 Winners Selected</div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
                     {groupWinners.map((winner, idx) => (
                       <div 
                         key={winner.id} 
-                        className={`rounded-lg p-3 transition ${
+                        className={`rounded-lg p-3 transition duration-300 border-2 ${
                           winner.id === user.id 
-                            ? 'bg-gradient-to-b from-neon-gold/30 to-neon-cyan/30 border-2 border-neon-gold' 
-                            : 'bg-black/60 border border-slate-600'
+                            ? 'bg-gradient-to-b from-neon-gold/30 to-neon-cyan/30 border-neon-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' 
+                            : 'bg-slate-800/40 border-slate-600/40 hover:border-neon-gold/50'
                         }`}
                       >
-                        <img src={winner.avatar} alt={winner.username} className="w-10 h-10 rounded-full mx-auto mb-2" />
-                        <div className={`text-[10px] font-arcade truncate ${winner.id === user.id ? 'text-neon-gold' : 'text-slate-400'}`}>
+                        <img src={winner.avatar} alt={winner.username} className="w-10 h-10 rounded-full mx-auto mb-2 border-2 border-neon-gold/50" />
+                        <div className={`text-[10px] font-arcade truncate font-bold ${winner.id === user.id ? 'text-neon-gold' : 'text-slate-300'}`}>
                           {winner.username.substring(0, 10)}
                         </div>
-                        {winner.id === user.id && <div className="text-[9px] text-neon-green mt-1">✓ YOU</div>}
+                        {winner.id === user.id && <div className="text-[9px] text-neon-green mt-1 font-black">✓ YOU</div>}
                       </div>
                     ))}
                   </div>
                   {groupWinners.some(w => w.id === user.id) ? (
-                    <div className="bg-neon-gold/10 border border-neon-gold/30 rounded px-4 py-3 text-center">
-                      <div className="text-neon-gold font-arcade text-sm mb-1">🎉 YOU ADVANCED!</div>
+                    <div className="bg-neon-gold/15 border-2 border-neon-gold/40 rounded-lg px-4 py-3 text-center">
+                      <div className="text-neon-gold font-arcade text-sm mb-1 font-black">🎉 YOU ADVANCED!</div>
                       <div className="text-xs text-slate-400">Proceed to Final Spin</div>
                     </div>
                   ) : (
-                    <div className="bg-red-950/20 border border-red-700/30 rounded px-4 py-3 text-center">
-                      <div className="text-red-400 font-arcade text-sm mb-1">❌ ELIMINATED</div>
+                    <div className="bg-red-950/20 border-2 border-red-700/30 rounded-lg px-4 py-3 text-center">
+                      <div className="text-red-400 font-arcade text-sm mb-1 font-black">❌ ELIMINATED</div>
                       <div className="text-xs text-slate-400">You didn't win your group</div>
                     </div>
                   )}
@@ -1043,9 +1486,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <img 
                       src={groupWinners.some(w => w.id === user.id) ? '/winnerman.png' : '/loserman.png'} 
                       alt={groupWinners.some(w => w.id === user.id) ? 'Winner' : 'Loser'}
-                      className={`w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent ${
-                        groupWinners.some(w => w.id === user.id) ? 'animate-winner-jump' : 'animate-loser-sad'
-                      }`}
+                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent"
                       style={{ backgroundColor: 'transparent' }}
                     />
                   </div>
@@ -1054,29 +1495,29 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                 {/* Arrow Down - Only show if winner */}
                 {groupWinners.some(w => w.id === user.id) && (
                   <div className="flex justify-center">
-                    <div className="text-2xl text-neon-green">↓</div>
+                    <div className="text-3xl text-neon-gold font-black animate-bounce">↓</div>
                   </div>
                 )}
 
                 {/* Stage 3: Final Spin (Upcoming) - Only show if winner */}
                 {groupWinners.some(w => w.id === user.id) && (
-                  <div className="text-center">
-                    <div className="text-sm font-arcade text-slate-400 mb-2 uppercase tracking-wider">Stage 3: Final Spin</div>
-                    <div className="text-xs text-slate-500">1 Winner from 10 finalists</div>
+                  <div className="bg-gradient-to-br from-slate-900/60 via-black/60 to-slate-900/50 border-2 border-neon-cyan/30 rounded-xl p-6 text-center">
+                    <div className="text-sm font-arcade text-slate-300 mb-2 uppercase tracking-wider font-bold">⚙️ Stage 3: Final Spin</div>
+                    <div className="text-xs text-slate-400">1 Winner from 10 finalists</div>
                   </div>
                 )}
 
                 {/* Arrow Down - Only show if winner */}
                 {groupWinners.some(w => w.id === user.id) && (
                   <div className="flex justify-center">
-                    <div className="text-2xl text-slate-600">↓</div>
+                    <div className="text-3xl text-neon-cyan font-black animate-bounce">↓</div>
                   </div>
                 )}
 
                 {/* Stage 4: Champion (Upcoming) - Only show if winner */}
                 {groupWinners.some(w => w.id === user.id) && (
-                  <div className="text-center">
-                    <div className="text-sm font-arcade text-slate-500 uppercase tracking-wider">Stage 4: 🏆 CHAMPION 🏆</div>
+                  <div className="bg-gradient-to-br from-slate-900/60 via-black/60 to-slate-900/50 border-2 border-neon-gold/30 rounded-xl p-6 text-center">
+                    <div className="text-sm font-arcade text-neon-gold font-black uppercase tracking-wider">🏆 Stage 4: GRAND CHAMPION</div>
                   </div>
                 )}
               </div>
@@ -1086,52 +1527,59 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* ELIM_LOSE - Prompt losers to return to lobby */}
         {phase === 'ELIM_LOSE' && (
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center max-w-md bg-slate-900/60 border border-neon-pink/30 rounded p-6">
-              <div className="text-6xl mb-4">😔</div>
-              <div className="text-2xl font-arcade text-neon-pink mb-3">Better luck next time!</div>
-              <div className="text-sm text-slate-400 mb-6">You weren't among the 10 winners. Your bet is locked for this tournament.</div>
-              <button onClick={exitToLobby} className="px-8 py-4 border-2 border-red-500 text-red-500 font-arcade text-lg font-bold hover:bg-red-500 hover:text-black transition">Back to Lobby</button>
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+            <div className="text-center max-w-md w-full bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-red-500/40 rounded-xl p-6 sm:p-8 shadow-[0_0_30px_rgba(255,0,0,0.2)]">
+              <div className="text-5xl sm:text-6xl mb-4 sm:mb-5">😔</div>
+              <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-neon-pink mb-3 sm:mb-4 font-black tracking-wider">Eliminated</div>
+              <div className="text-slate-300 text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed">You weren't among the 20 group winners. Better luck on your next tournament!</div>
+              <button 
+                onClick={exitToLobby} 
+                className="w-full px-6 sm:px-8 py-3 sm:py-4 border-2 border-slate-500 text-slate-300 font-arcade text-base sm:text-lg font-black hover:border-neon-pink hover:text-neon-pink hover:bg-neon-pink/20 transition-all duration-300 rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)]"
+              >
+                Back to Lobby
+              </button>
             </div>
           </div>
         )}
 
         {/* FINAL_COLOR - Show user's assigned color with 5s countdown */}
         {phase === 'FINAL_COLOR' && (
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center max-w-md bg-slate-900/60 border border-neon-cyan/30 rounded-lg p-8">
-              <div className="text-5xl mb-4">🎮</div>
-              <div className="text-2xl font-arcade text-neon-gold mb-4">Your Final Color</div>
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+            <div className="text-center max-w-sm w-full bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-cyan/40 rounded-xl p-6 sm:p-8 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+              <div className="text-6xl sm:text-7xl mb-5 sm:mb-6">🎮</div>
+              <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold to-neon-cyan mb-6 font-black tracking-wider">Your Final Color</div>
               <div className="flex justify-center mb-6">
                 <div
-                  className="w-32 h-32 rounded-lg border-4 border-white shadow-lg transform transition-all hover:scale-105"
-                  style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX], boxShadow: `0 0 30px ${COLOR_HEX[userColor as keyof typeof COLOR_HEX]}99` }}
+                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border-4 border-white shadow-[0_0_40px_rgba(255,255,255,0.3)] transform hover:scale-105 transition-transform duration-300"
+                  style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX], boxShadow: `0_0_50px_${COLOR_HEX[userColor as keyof typeof COLOR_HEX]}80` }}
                 />
               </div>
-              <div className="text-xl font-arcade capitalize text-neon-cyan mb-6 tracking-widest">{userColor}</div>
-              <div className="text-5xl font-arcade text-neon-pink mb-4 animate-bounce">{finalColorCountdown}</div>
-              <div className="text-sm text-slate-400">Joining final room...</div>
+              <div className="text-2xl sm:text-3xl font-arcade capitalize text-neon-cyan mb-6 font-black tracking-wider drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">{userColor}</div>
+              <div className="text-5xl sm:text-6xl font-arcade text-neon-pink mb-5 animate-bounce font-black">{finalColorCountdown}</div>
+              <div className="text-sm text-slate-400 font-arcade">⏳ Joining final room...</div>
             </div>
           </div>
         )}
 
         {/* FINAL_PREP - Winners get ready prompt */}
         {phase === 'FINAL_PREP' && (
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-center max-w-md bg-slate-900/60 border border-neon-gold/30 rounded p-6">
-              <div className="text-5xl mb-3">🚀</div>
-              <div className="text-2xl font-arcade text-neon-gold mb-2">Get Ready for Round 2</div>
-              <div className="text-sm text-slate-400 mb-4">The 10 group winners have been assigned new colors and will spin for the grand prize.</div>
-              <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+            <div className="text-center max-w-md w-full bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-gold/40 rounded-xl p-6 sm:p-8 shadow-[0_0_30px_rgba(255,215,0,0.2)]">
+              <div className="text-5xl sm:text-6xl mb-4 sm:mb-5">🚀</div>
+              <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold to-neon-pink mb-4 sm:mb-5 font-black tracking-wider">Get Ready</div>
+              <div className="text-slate-300 text-sm sm:text-base mb-6 sm:mb-8">The 20 group winners have been assigned new colors and will spin for the grand prize.</div>
+              <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
                 {groupWinners.slice(0,10).map((w, i) => (
-                  <div key={w.id} className="flex flex-col items-center text-xs">
-                    <div className="w-10 h-10 rounded-full mb-1" style={{ backgroundColor: COLOR_HEX[w.assignedColor as keyof typeof COLOR_HEX] }} />
-                    <div className="font-arcade truncate max-w-[64px]">{w.username}</div>
+                  <div key={w.id} className="flex flex-col items-center text-center">
+                    <div 
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white shadow-lg transform hover:scale-110 transition-transform duration-300" 
+                      style={{ backgroundColor: COLOR_HEX[w.assignedColor as keyof typeof COLOR_HEX] }} 
+                    />
                   </div>
                 ))}
               </div>
-              <div className="text-3xl font-arcade text-neon-cyan mb-4">{countdownActive ? countdown : 3}</div>
-              <div className="text-xs text-slate-400 mb-3">Final spin starts shortly</div>
+              <div className="text-6xl sm:text-7xl font-arcade text-neon-cyan mb-3 sm:mb-4 font-black animate-pulse">{countdownActive ? countdown : 3}</div>
+              <div className="text-xs sm:text-sm text-slate-400 font-arcade">Final spin starts shortly</div>
             </div>
           </div>
         )}
@@ -1282,7 +1730,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
               {/* Winners count */}
               <div className="p-2 sm:p-3">
-                <div className="text-neon-green font-arcade text-[8px] sm:text-[10px]">WINNERS: {groupWinners.length}/10</div>
+                <div className="text-neon-green font-arcade text-[8px] sm:text-[10px]">WINNERS: {groupWinners.length}/20</div>
               </div>
             </div>
 
@@ -1422,28 +1870,24 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               {grandWinner?.id === user.id ? (
                 // Grand Champion - Mobile Responsive
                 <div className="w-full">
-                  <div className="text-3xl sm:text-4xl md:text-6xl mb-1 sm:mb-2 md:mb-3 animate-bounce drop-shadow-[0_0_30px_rgba(255,215,0,0.8)]">
-                    👑
-                  </div>
-                  <div className="text-xl sm:text-2xl md:text-4xl font-arcade text-neon-gold mb-1 sm:mb-2 md:mb-3 animate-pulse drop-shadow-[0_0_20px_rgba(255,215,0,0.6)] tracking-wider">
-                    GRAND CHAMPION!
-                  </div>
-                  <div className="bg-gradient-to-b from-neon-gold/20 to-neon-cyan/10 border border-neon-gold rounded-lg p-2 sm:p-3 md:p-6 mb-2 sm:mb-3 md:mb-4 shadow-[0_0_40px_rgba(255,215,0,0.3)]">
-                    <img src={user.avatar} alt="you" className="w-10 sm:w-12 md:w-16 h-10 sm:h-12 md:h-16 rounded-full mx-auto mb-1 sm:mb-2 md:mb-3 border-2 border-neon-gold shadow-lg" />
-                    <div className="font-arcade text-xs sm:text-base md:text-xl text-neon-cyan mb-1 sm:mb-2 md:mb-3 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]">
+                  <div className="text-5xl sm:text-6xl md:text-7xl mb-3 sm:mb-4 md:mb-5 animate-bounce drop-shadow-[0_0_40px_rgba(255,215,0,0.8)]">👑</div>
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan mb-3 sm:mb-4 md:mb-5 animate-pulse drop-shadow-[0_0_30px_rgba(255,215,0,0.6)] font-black tracking-widest">GRAND CHAMPION!</div>
+                  <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-gold/50 rounded-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 md:mb-8 shadow-[0_0_40px_rgba(255,215,0,0.3)]">
+                    <img src={user.avatar} alt="you" className="w-14 sm:w-16 md:w-20 h-14 sm:h-16 md:h-20 rounded-full mx-auto mb-3 sm:mb-4 md:mb-5 border-4 border-neon-gold shadow-[0_0_20px_rgba(255,215,0,0.5)]" />
+                    <div className="font-arcade text-sm sm:text-lg md:text-xl text-neon-cyan mb-2 sm:mb-3 md:mb-4 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)] font-black">
                       {user.username}
                     </div>
-                    <div className="text-[8px] sm:text-[9px] md:text-xs text-slate-300 mb-0.5 sm:mb-1">Total Prize</div>
-                    <div className="text-xl sm:text-2xl md:text-4xl font-arcade text-neon-gold mb-2 sm:mb-3 md:mb-4 font-black tracking-wider drop-shadow-[0_0_20px_rgba(255,215,0,0.4)]">
+                    <div className="text-xs sm:text-sm text-slate-300 mb-1 sm:mb-2">Total Prize Pool</div>
+                    <div className="text-3xl sm:text-4xl md:text-5xl font-arcade text-neon-gold mb-3 sm:mb-4 md:mb-6 font-black tracking-wider drop-shadow-[0_0_25px_rgba(255,215,0,0.5)]">
                       ${totalPot.toLocaleString()}
                     </div>
-                    <div className="text-[7px] sm:text-[8px] md:text-xs text-neon-green bg-neon-green/20 rounded p-1.5 sm:p-2 md:p-2.5 border border-neon-green/50 animate-pulse">
-                      🎊 Prize Added to Balance 🎊
+                    <div className="text-xs sm:text-sm font-arcade text-neon-green bg-gradient-to-r from-neon-green/20 to-neon-cyan/20 rounded-lg p-2.5 sm:p-3 md:p-3.5 border-2 border-neon-green/40 animate-pulse font-black">
+                      ✨ Prize Added to Balance ✨
                     </div>
                   </div>
                   <button
                     onClick={exitToLobby}
-                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-neon-gold text-neon-gold font-arcade text-sm sm:text-base md:text-lg hover:bg-neon-gold hover:text-black transition drop-shadow-[0_0_15px_rgba(255,215,0,0.4)] font-bold"
+                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-neon-gold text-neon-gold font-arcade text-sm sm:text-base md:text-lg font-black hover:bg-gradient-to-r hover:from-neon-gold hover:to-neon-pink hover:text-black hover:shadow-[0_0_30px_rgba(255,215,0,0.6)] transition-all duration-300 rounded-lg"
                   >
                     Back to Lobby
                   </button>
@@ -1461,16 +1905,17 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               ) : (
                 // Eliminated - Mobile Responsive
                 <div className="w-full">
-                  <div className="text-2xl sm:text-3xl md:text-4xl mb-1 sm:mb-2 md:mb-3">😔</div>
-                  <div className="text-base sm:text-lg md:text-2xl font-arcade text-neon-pink mb-2 sm:mb-3 md:mb-4">Better luck next time!</div>
-                  <div className="bg-slate-800/50 border border-neon-pink/30 rounded p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4">
-                    <div className="text-[8px] sm:text-[9px] md:text-xs text-slate-400 mb-1">Grand Champion</div>
-                    <img src={grandWinner?.avatar} alt="champion" className="w-10 sm:w-11 md:w-14 h-10 sm:h-11 md:h-14 rounded-full mx-auto mb-1 sm:mb-2" />
-                    <div className="font-arcade text-[9px] sm:text-xs md:text-base text-neon-pink">{grandWinner?.username}</div>
+                  <div className="text-4xl sm:text-5xl md:text-6xl mb-3 sm:mb-4 md:mb-5">😔</div>
+                  <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-neon-pink mb-3 sm:mb-4 md:mb-5 font-black tracking-wider">Better luck next time!</div>
+                  <div className="bg-gradient-to-br from-slate-800/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 md:mb-8 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
+                    <div className="text-xs sm:text-sm text-slate-400 mb-2 sm:mb-3 font-arcade tracking-wider uppercase">Grand Champion</div>
+                    <img src={grandWinner?.avatar} alt="champion" className="w-14 sm:w-16 md:w-20 h-14 sm:h-16 md:h-20 rounded-full mx-auto mb-2 sm:mb-3 border-4 border-neon-gold" />
+                    <div className="font-arcade text-sm sm:text-lg md:text-xl text-neon-gold font-black mb-2 sm:mb-3">{grandWinner?.username}</div>
+                    <div className="text-xs text-slate-400">They won ${totalPot.toLocaleString()}</div>
                   </div>
                   <button
                     onClick={exitToLobby}
-                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-red-500 text-red-500 font-arcade text-sm sm:text-base md:text-lg hover:bg-red-500 hover:text-black transition font-bold"
+                    className="w-full px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 border-2 border-slate-500 text-slate-300 font-arcade text-sm sm:text-base md:text-lg font-black hover:border-neon-pink hover:text-neon-pink transition-all duration-300 rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)]"
                   >
                     Back to Lobby
                   </button>
@@ -1480,7 +1925,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <img 
                       src="/loserman.png" 
                       alt="Loser"
-                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent animate-loser-cry"
+                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] bg-transparent"
                       style={{ backgroundColor: 'transparent' }}
                     />
                   </div>
@@ -1494,8 +1939,61 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
         {showRankUp && <RankUpModal newRank={user.rank} previousRank={previousRank} onClose={() => setShowRankUp(false)} />}
       </div>
 
+      {/* Bottom Status Bar - Always visible when in tournament */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 py-3 bg-black border-t-2 border-neon-cyan flex items-center justify-between">
+        <div className="text-xs font-arcade text-slate-400">Your Group: <span className="room-badge">G{userGroup}</span></div>
+        {phase === 'ROOM_ASSIGN' && (
+          <button
+            onClick={() => { soundManager.play('click'); joinGameroom(); }}
+            className="px-4 py-1.5 border-2 border-neon-green text-neon-green font-arcade text-xs font-black tracking-wider hover:bg-neon-green hover:text-black hover:shadow-[0_0_20px_rgba(0,255,0,0.6)] transition-all active:scale-95"
+          >
+            ▶ PROCEED
+          </button>
+        )}
+      </div>
+
       {/* Animation Styles */}
       <style>{`
+        .room-badge {
+          display: inline-block !important;
+          font-size: 18px !important;
+          font-weight: 900 !important;
+          color: white !important;
+          background-color: #00FFFF !important;
+          padding: 8px 14px !important;
+          margin: 0 6px !important;
+          border-radius: 6px !important;
+          box-shadow: 0 0 20px #00FFFF, 0 0 40px #00FFFF, inset 0 0 10px rgba(255,255,255,0.3) !important;
+          font-family: arcade, monospace !important;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        @keyframes groupGlow {
+          0%, 100% { 
+            text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF;
+            color: #00FFFF;
+          }
+          50% { 
+            text-shadow: 0 0 20px #00FFFF, 0 0 40px #00FFFF, 0 0 60px #00FFFF;
+            color: #FFFFFF;
+          }
+        }
+        .group-glow {
+          font-size: 1.5rem;
+          font-weight: 900;
+          font-family: arcade, monospace;
+          animation: groupGlow 1s ease-in-out infinite;
+        }
+        .user-group-highlight {
+          background-color: rgba(0, 255, 255, 0.3) !important;
+          border: 2px solid rgb(0, 255, 255) !important;
+          box-shadow: 0 0 20px rgba(0, 255, 255, 1), 0 0 40px rgba(0, 255, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6) !important;
+          filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.9)) !important;
+          position: relative !important;
+          z-index: 10 !important;
+        }
         @keyframes winnerBreathe {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.15); }

@@ -5,6 +5,8 @@ import {
   authenticateWithGoogle, 
   authenticateWithFacebook, 
   authenticateWithApple,
+  authenticateWithGoogleFirebase,
+  initializeFirebase,
   initializeGoogleAuth, 
   initializeFacebookAuth,
   AuthUser 
@@ -27,11 +29,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   });
 
   const [authMethod, setAuthMethod] = useState<AuthMethod>(AuthMethod.EMAIL);
+  const [useFirebase, setUseFirebase] = useState(true); // Default to Firebase for Google auth
 
   // Initialize OAuth providers on component mount
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        await initializeFirebase();
         await initializeGoogleAuth();
         await initializeFacebookAuth();
       } catch (err) {
@@ -75,7 +79,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       let authUser: AuthUser;
 
       if (method === AuthMethod.GOOGLE) {
-        authUser = await authenticateWithGoogle();
+        // Use Firebase for Google auth if configured
+        if (useFirebase && import.meta.env.VITE_FIREBASE_API_KEY) {
+          try {
+            authUser = await authenticateWithGoogleFirebase();
+          } catch (firebaseError) {
+            console.warn('Firebase auth failed, falling back to standard Google auth:', firebaseError);
+            authUser = await authenticateWithGoogle();
+          }
+        } else {
+          authUser = await authenticateWithGoogle();
+        }
       } else if (method === AuthMethod.FACEBOOK) {
         authUser = await authenticateWithFacebook();
       } else if (method === AuthMethod.APPLE) {

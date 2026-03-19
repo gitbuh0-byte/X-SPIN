@@ -71,7 +71,7 @@ const BettingModal: React.FC<BettingModalProps> = ({
     blitz: { name: 'BLITZ', color: 'neon-cyan', description: '15-Player Lobby' },
     '1v1': { name: '1v1 DUEL', color: 'neon-green', description: 'Head to Head' },
     tournament: { name: 'TOURNAMENT', color: 'neon-pink', description: '20-Player Elite' },
-    grandprix: { name: 'GRAND PRIX', color: 'neon-pink', description: '100 Players • 10 Groups' }
+    grandprix: { name: 'GRAND PRIX', color: 'neon-pink', description: '100 Players • 20 Groups • 5 Per Group' }
   };
 
   const config = modeConfig[gameMode];

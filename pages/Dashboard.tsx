@@ -91,9 +91,96 @@ const EditProfileModal: React.FC<{ isOpen: boolean; onClose: () => void; user: U
   );
 };
 
+const MusicSettingsModal: React.FC<{ isOpen: boolean; onClose: () => void; bgmVolume: number; sfxVolume: number; onBgmChange: (v: number) => void; onSfxChange: (v: number) => void }> = ({ isOpen, onClose, bgmVolume, sfxVolume, onBgmChange, onSfxChange }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-vegas-panel border-2 border-neon-pink box-glow-pink p-4 sm:p-6 rounded w-full max-w-md relative">
+        <h2 className="text-lg sm:text-xl font-arcade text-white mb-6 sm:mb-8 text-center tracking-widest uppercase">MUSIC SETTINGS</h2>
+        <div className="space-y-6 sm:space-y-8">
+          {/* Background Music Volume */}
+          <div>
+            <label className="block text-neon-pink text-xs sm:text-sm font-bold uppercase mb-3 sm:mb-4 flex items-center gap-2">
+              <span>🎵</span>
+              <span>Background Music</span>
+            </label>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={bgmVolume}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  onBgmChange(v);
+                  soundManager.setBgmVolume(v);
+                }}
+                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-neon-pink"
+              />
+              <span className="text-neon-pink font-mono text-sm sm:text-base font-bold w-8 text-right">{Math.round(bgmVolume * 100)}</span>
+            </div>
+          </div>
+
+          {/* SFX Volume */}
+          <div>
+            <label className="block text-neon-cyan text-xs sm:text-sm font-bold uppercase mb-3 sm:mb-4 flex items-center gap-2">
+              <span>🔊</span>
+              <span>Game Sound Effects</span>
+            </label>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={sfxVolume}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  onSfxChange(v);
+                  soundManager.setSfxVolume(v);
+                  soundManager.play('click');
+                }}
+                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-neon-cyan"
+              />
+              <span className="text-neon-cyan font-mono text-sm sm:text-base font-bold w-8 text-right">{Math.round(sfxVolume * 100)}</span>
+            </div>
+          </div>
+
+          {/* Test Buttons */}
+          <div className="space-y-2 pt-4 border-t border-slate-700">
+            <p className="text-slate-400 text-xs uppercase font-mono mb-2">TEST SOUND</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => soundManager.play('click')}
+                className="flex-1 py-2 bg-neon-cyan text-black font-arcade text-xs font-bold uppercase rounded hover:bg-neon-cyan/80 active:scale-95 transition"
+              >
+                SFX Test
+              </button>
+              <button
+                onClick={() => soundManager.play('bgm')}
+                className="flex-1 py-2 bg-neon-pink text-black font-arcade text-xs font-bold uppercase rounded hover:bg-neon-pink/80 active:scale-95 transition"
+              >
+                Music Test
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 sm:gap-4 mt-6 sm:mt-8">
+          <button onClick={onClose} className="flex-1 py-2 sm:py-3 border border-neon-pink text-neon-pink font-arcade text-xs sm:text-sm uppercase rounded hover:bg-neon-pink/10 active:scale-95 transition">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment, onUpdateProfile, onLogout }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [showMusicSettings, setShowMusicSettings] = useState(false);
+  const [bgmVolume, setBgmVolume] = useState(soundManager.getBgmVolume());
+  const [sfxVolume, setSfxVolume] = useState(soundManager.getSfxVolume());
   const rank = RANK_CONFIG[user.rank];
   const nextRankXp = user.rankXp >= 15 ? 15 : user.rankXp >= 10 ? 15 : user.rankXp >= 5 ? 10 : 5;
   const progress = Math.min((user.rankXp / nextRankXp) * 100, 100);
@@ -113,6 +200,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment
             />
           </div>
         </div>
+      )}
+
+      {/* Music Settings Modal */}
+      {showMusicSettings && (
+        <MusicSettingsModal
+          isOpen={showMusicSettings}
+          onClose={() => setShowMusicSettings(false)}
+          bgmVolume={bgmVolume}
+          sfxVolume={sfxVolume}
+          onBgmChange={setBgmVolume}
+          onSfxChange={setSfxVolume}
+        />
       )}
 
       {/* Stats Grid - Fully responsive with better mobile spacing */}
@@ -156,8 +255,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, transactions, onOpenPayment
           <div className="space-y-0.5 sm:space-y-1">
             <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-transparent border border-neon-cyan text-neon-cyan font-bold py-1 sm:py-1.5 md:py-2 uppercase text-xs sm:text-sm md:text-base tracking-wider hover:bg-neon-cyan/10 transition-colors text-center rounded-sm">EDIT</button>
             <button onClick={() => setShowProfileSettings(true)} className="w-full bg-transparent border border-neon-green text-neon-green font-bold py-1 sm:py-1.5 md:py-2 uppercase text-xs sm:text-sm md:text-base tracking-wider hover:bg-neon-green/10 transition-colors text-center rounded-sm">INFO</button>
+            <button onClick={() => setShowMusicSettings(true)} className="w-full bg-transparent border border-neon-pink text-neon-pink font-bold py-1 sm:py-1.5 md:py-2 uppercase text-xs sm:text-sm md:text-base tracking-wider hover:bg-neon-pink/10 transition-colors text-center rounded-sm">SETTINGS</button>
             {onLogout && (
-              <button onClick={onLogout} className="w-full bg-transparent border border-neon-pink text-neon-pink font-bold py-1 sm:py-1.5 md:py-2 uppercase text-xs sm:text-sm md:text-base tracking-wider hover:bg-neon-pink/10 transition-colors text-center rounded-sm">LOGOUT</button>
+              <button onClick={onLogout} className="w-full bg-transparent border border-red-500 text-red-500 font-bold py-1 sm:py-1.5 md:py-2 uppercase text-xs sm:text-sm md:text-base tracking-wider hover:bg-red-500/10 transition-colors text-center rounded-sm">LOGOUT</button>
             )}
           </div>
         </div>

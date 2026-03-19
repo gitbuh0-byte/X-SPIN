@@ -330,6 +330,9 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, updateBalance, onWin, roomId:
   useEffect(() => {
     isMounted.current = true;
     
+    // Start background music when entering game room
+    soundManager.play('bgm');
+    
     // Only initialize if bets have been placed
     if (!betsPlaced) return;
 

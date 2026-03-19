@@ -41,6 +41,8 @@ const Layout: React.FC<{ children: React.ReactNode; user: User; onOpenPayment?: 
   const toggleSound = () => {
     soundManager.play('click');
     setIsMuted(soundManager.toggleMute());
+    // Force music to start on first interaction
+    soundManager.forceBgmStart();
   };
 
   useEffect(() => {
@@ -146,7 +148,28 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Set up autoplay on any user interaction
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      soundManager.forceBgmStart();
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keypress', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+    
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keypress', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+    
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keypress', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
+
   const handleUpdateBalance = useCallback((amount: number) => {
+    soundManager.forceBgmStart(); // Ensure music plays when user interacts
     setUser(prev => ({ ...prev, balance: prev.balance + amount }));
   }, []);
 
@@ -158,7 +181,7 @@ const AppContent: React.FC = () => {
       let themeColor = 'neon-cyan';
       if (roomId.includes('pve')) { type = '1v1'; displayName = '1v1 DUEL'; themeColor = 'neon-green'; }
       else if (roomId.includes('grandprix')) { type = 'grandprix'; displayName = 'GRAND PRIX'; themeColor = 'neon-pink'; }
-      else if (roomId.includes('tournament')) { type = 'tournament'; displayName = 'GRAND PRIX'; themeColor = 'neon-pink'; }
+      else if (roomId.includes('tournament')) { type = 'tournament'; displayName = 'TOURNAMENT'; themeColor = 'neon-pink'; }
       return [...prev, { id: roomId, type, mode: type, status: 'CONNECTING...', themeColor, lastUpdate: Date.now() }];
     });
     navigate(`/room/${roomId}`);

@@ -5,152 +5,133 @@ interface Player {
   id: string;
   name: string;
   avatar: string;
+  username?: string;
 }
 
 interface Room {
   id: string;
   roomNumber: number;
+  roomLabel: string; // "G1", "G2", etc or "QF1", "Final"
   players: Player[];
   status: 'active' | 'upcoming' | 'completed';
   winner?: string;
 }
 
 interface TournamentBracketNewProps {
-  groupNumber: number;
+  groupNumber: number;  // 1-20 (user's assigned room/group)
   playersInGroup: number;
   onProceedClick?: () => void;
+  userUsername?: string;  // User's actual username to display in their room
 }
 
 const TournamentBracketNew: React.FC<TournamentBracketNewProps> = ({ 
   groupNumber, 
   playersInGroup,
-  onProceedClick 
+  onProceedClick,
+  userUsername
 }) => {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const [paths, setPaths] = useState<Array<{d: string, id: string}>>([]);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const round1RefsRef = React.useRef<{[key: string]: HTMLDivElement}>({});
-  const round2RefsRef = React.useRef<{[key: string]: HTMLDivElement}>({});
-
-  React.useEffect(() => {
-    if (!containerRef.current) return;
-    
-    const container = containerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const scrollTop = container.scrollTop;
-    
-    const newPaths: Array<{d: string, id: string}> = [];
-    
-    // Generate paths for each group of 5 rooms to their QF room
-    for (let groupIdx = 0; groupIdx < 4; groupIdx++) {
-      const qfRoomKey = `qf-room-${groupIdx + 1}`;
-      const qfRoom = round2RefsRef.current[qfRoomKey];
-      
-      if (!qfRoom) continue;
-      
-      const qfRect = qfRoom.getBoundingClientRect();
-      const qfContainerRect = container.getBoundingClientRect();
-      const qfCenterY = qfRect.top - qfContainerRect.top + qfRect.height / 2 + scrollTop;
-      const qfX = qfRect.left - qfContainerRect.left + scrollLeft;
-      
-      for (let roomIdx = 0; roomIdx < 5; roomIdx++) {
-        const r1RoomKey = `r1-room-${groupIdx * 5 + roomIdx + 1}`;
-        const r1Room = round1RefsRef.current[r1RoomKey];
-        
-        if (!r1Room) continue;
-        
-        const r1Rect = r1Room.getBoundingClientRect();
-        const r1CenterY = r1Rect.top - qfContainerRect.top + r1Rect.height / 2 + scrollTop;
-        const r1X = r1Rect.left - qfContainerRect.left + scrollLeft + r1Rect.width;
-        
-        const midX = (r1X + qfX) / 2;
-        const pathId = `path-${groupIdx}-${roomIdx}`;
-        const pathData = `M ${r1X} ${r1CenterY} Q ${midX} ${(r1CenterY + qfCenterY) / 2}, ${qfX} ${qfCenterY}`;
-        
-        newPaths.push({d: pathData, id: pathId});
-      }
-    }
-    
-    setPaths(newPaths);
-  }, []);
+  const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 
   // Generate mock players for demonstration
-  const generatePlayers = (roomId: string, count: number): Player[] => {
-    const names = ['NeonGhost', 'CyberVortex', 'PixelKing', 'ShadowEcho', 'VortexRider'];
-    return Array.from({ length: count }).map((_, i) => ({
-      id: `${roomId}-player-${i}`,
-      name: names[i % names.length],
-      avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${roomId}-${i}`
-    }));
+  const generatePlayers = (seedValue: string, count: number, includeUser: boolean = false): Player[] => {
+    const names = ['NeonGhost', 'CyberVortex', 'PixelKing', 'ShadowEcho', 'VortexRider', 'CrimsonBlade', 'NovaStrike', 'PhantomRage'];
+    return Array.from({ length: count }).map((_, i) => {
+      // First player is the user if this is the user's room
+      if (includeUser && i === 0 && userUsername) {
+        return {
+          id: `${seedValue}-player-${i}`,
+          name: userUsername,
+          username: userUsername,
+          avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${userUsername}`
+        };
+      }
+      return {
+        id: `${seedValue}-player-${i}`,
+        name: names[i % names.length],
+        username: names[i % names.length],
+        avatar: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${seedValue}-${i}`
+      };
+    });
   };
 
-  // Round 1: 20 rooms total (4 groups of 5)
-  const round1Rooms: Room[] = Array.from({ length: 20 }).map((_, i) => ({
-    id: `r1-room-${i + 1}`,
-    roomNumber: i + 1,
-    players: generatePlayers(`r1-room-${i + 1}`, 2),
-    status: 'completed' as const,
-    winner: `r1-room-${i + 1}-player-0`
-  }));
+  // ROUND 1: 20 Rooms (G1 through G20)
+  const round1Rooms: Room[] = Array.from({ length: 20 }).map((_, i) => {
+    const isUserRoom = (i + 1) === groupNumber;
+    return {
+      id: `r1-room-${i + 1}`,
+      roomNumber: i + 1,
+      roomLabel: `G${i + 1}`,  // G1, G2, ... G20
+      players: generatePlayers(`r1-room-${i + 1}`, playersInGroup, isUserRoom),
+      status: 'completed' as const,
+      winner: `r1-room-${i + 1}-player-0`
+    };
+  });
 
-  // Round 2: 4 rooms (Quarter Finals) - each receives from 5 Round 1 rooms
+  // ROUND 2: 4 Quarter Final rooms (QF1 through QF4)
+  // Each QF room gets winners from 5 Round 1 rooms
   const round2Rooms: Room[] = Array.from({ length: 4 }).map((_, i) => ({
     id: `r2-room-${i + 1}`,
     roomNumber: i + 1,
-    players: generatePlayers(`r2-room-${i + 1}`, 2),
+    roomLabel: `QF${i + 1}`,  // QF1, QF2, QF3, QF4
+    players: generatePlayers(`r2-room-${i + 1}`, 5),  // Each QF has 5 finalists from their group
     status: 'upcoming' as const
   }));
 
-  // Round 3: 1 room (Final) - receives from all 4 Quarter Final rooms
+  // ROUND 3: 1 Final room (Final)
+  // The final has the 4 winners from each QF room
   const round3Rooms: Room[] = Array.from({ length: 1 }).map((_, i) => ({
     id: `final-room-${i + 1}`,
     roomNumber: i + 1,
-    players: generatePlayers(`final-room-${i + 1}`, 2),
+    roomLabel: 'FINAL',
+    players: generatePlayers(`final-room-${i + 1}`, 4),  // 4 finalists competing
     status: 'upcoming' as const
   }));
 
-  const RoomCard = ({ room }: { room: Room }) => {
-    const displayPlayers = room.players.slice(0, 2);
-    
-    return (
-      <div
-        onClick={() => {
-          soundManager.play('click');
-          setSelectedRoom(selectedRoom === room.id ? null : room.id);
-        }}
-        className={`cursor-pointer transition-all duration-300 border-2 rounded-lg p-2 w-36 sm:w-40 backdrop-blur-sm ${
-          selectedRoom === room.id
-            ? 'border-neon-gold bg-neon-gold/20 shadow-[0_0_30px_rgba(255,215,0,0.6)]'
-            : room.status === 'completed'
-            ? 'border-neon-green/70 bg-black/70 hover:border-neon-green'
-            : 'border-neon-cyan/50 bg-black/60 hover:border-neon-cyan'
-        }`}
-      >
-        <div className="text-xs font-arcade font-bold tracking-wider mb-2 text-center">
-          ROOM {room.roomNumber}
-        </div>
-
-        {room.status === 'upcoming' ? (
-          <div className="text-center py-2">
-            <div className="text-[8px] text-neon-cyan/60 font-arcade">TBC</div>
-          </div>
-        ) : (
-          <div className="space-y-1 w-full">
-            {displayPlayers.map((player) => (
-              <div key={player.id} className="flex items-center gap-1 p-1 bg-black/40 rounded text-[7px]">
-                <img 
-                  src={player.avatar}
-                  alt={player.name}
-                  className="w-3 h-3 rounded-full"
-                />
-                <div className="flex-1 min-w-0 truncate text-neon-cyan">
-                  {player.name.slice(0, 8)}
-                </div>
+  const RoomCardContent = ({ room, isHovered, round, showPlayers = true }: { room: Room; isHovered: boolean; round: 1 | 2 | 3; showPlayers?: boolean }) => {
+    // Only show player details in Round 1, for Round 2 and Final show "TBC"
+    if (isHovered && showPlayers) {
+      return (
+        <div className="space-y-1">
+          <div className="font-arcade text-neon-cyan font-bold text-[8px]">{room.roomLabel}</div>
+          {room.players.map((player) => (
+            <div key={player.id} className="flex items-center gap-1 p-1 bg-black/40 rounded text-[7px]">
+              <img 
+                src={player.avatar}
+                alt={player.username || player.name}
+                className="w-3 h-3 rounded-full"
+              />
+              <div className="flex-1 min-w-0 truncate text-neon-cyan">
+                {(player.username || player.name).slice(0, 12)}
               </div>
-            ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (isHovered && !showPlayers) {
+      // Round 2 and Final: show "TBC" on hover
+      return (
+        <div className="space-y-1">
+          <div className="font-arcade text-neon-cyan font-bold text-[8px]">{room.roomLabel}</div>
+          <div className="text-neon-pink/70 text-[7px] font-arcade">TBC</div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="font-arcade text-neon-cyan font-bold text-[9px]">{room.roomLabel}</div>
+        {showPlayers && room.players.length > 0 && (
+          <div className="text-neon-gold text-[8px] truncate">
+            {(room.players[0].username || room.players[0].name).slice(0, 10)}
           </div>
         )}
-      </div>
+        {!showPlayers && (
+          <div className="text-neon-pink/60 text-[8px]">—</div>
+        )}
+      </>
     );
   };
 
@@ -163,104 +144,144 @@ const TournamentBracketNew: React.FC<TournamentBracketNewProps> = ({
             GRAND PRIX TOURNAMENT
           </h1>
           <p className="text-[9px] sm:text-xs text-neon-cyan font-mono">
-            20 Rooms → 4 Rooms → 1 Final Room
+            Round 1: 20 Rooms • Round 2: 4 Rooms • Final: 1 Room
+          </p>
+          <p className="text-[8px] sm:text-[9px] text-neon-pink font-arcade mt-1">
+            Your Room: <span className="text-neon-green font-bold">G{groupNumber}</span>
           </p>
         </div>
       </div>
 
-      {/* Bracket Container - Horizontal Scroll */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto relative">
-        {/* SVG Connection Lines */}
-        <svg className="absolute top-0 left-0 pointer-events-none" style={{width: '100%', height: '100%', minWidth: '100%'}}>
-          {/* Group 1: Rooms 1-5 → QF Room 1 */}
-          <path d="M 176 60 Q 210 110, 256 100" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 124 Q 210 110, 256 100" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 180 Q 210 130, 256 130" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 236 Q 210 150, 256 160" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 292 Q 210 170, 256 160" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
+      {/* Bracket Container */}
+      <div className="flex-1 overflow-auto relative pb-8">
+        <div className="w-full h-full flex flex-col justify-center items-center p-4 sm:p-8 min-h-fit">
           
-          {/* Group 2: Rooms 6-10 → QF Room 2 */}
-          <path d="M 176 360 Q 210 390, 256 260" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 424 Q 210 390, 256 260" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 480 Q 210 410, 256 290" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 536 Q 210 430, 256 290" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-          <path d="M 176 592 Q 210 450, 256 290" stroke="rgba(0,255,255,0.6)" strokeWidth="2" fill="none" />
-        </svg>
-        
-        <div className="inline-flex gap-20 p-8 min-h-full relative z-10">
-          
-          {/* ROUND 1: 20 ROOMS (4 Groups of 5) */}
-          <div className="flex flex-col gap-8 justify-start">
+          {/* Stage Headers */}
+          <div className="flex gap-8 sm:gap-16 justify-center w-full mb-8 px-4">
             <div className="text-center">
-              <div className="text-xs font-arcade text-neon-pink font-bold uppercase bg-black/60 border border-neon-pink/50 px-3 py-1 rounded">
-                Round 1
-              </div>
+              <div className="text-xs sm:text-sm font-arcade text-neon-pink font-bold uppercase tracking-wider">Round 1</div>
+              <div className="text-[8px] text-neon-pink/60">20 Rooms</div>
             </div>
-
-            {[0, 1, 2, 3].map((groupIdx) => (
-              <div key={`group-${groupIdx}`} className="flex flex-col gap-2">
-                {round1Rooms.slice(groupIdx * 5, (groupIdx + 1) * 5).map((room) => (
-                  <RoomCard key={room.id} room={room} />
-                ))}
-              </div>
-            ))}
+            <div className="text-center">
+              <div className="text-xs sm:text-sm font-arcade text-neon-cyan font-bold uppercase tracking-wider">Round 2</div>
+              <div className="text-[8px] text-neon-cyan/60">4 Rooms</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs sm:text-sm font-arcade text-neon-gold font-bold uppercase tracking-wider">Final</div>
+              <div className="text-[8px] text-neon-gold/60">1 Room</div>
+            </div>
           </div>
 
-          {/* ROUND 2: 4 QUARTER FINAL ROOMS */}
-          <div className="flex flex-col gap-12 justify-start">
-            <div className="text-center">
-              <div className="text-xs font-arcade text-neon-pink font-bold uppercase bg-black/60 border border-neon-pink/50 px-3 py-1 rounded">
-                Quarter Finals
-              </div>
+          {/* Main Bracket */}
+          <div className="flex gap-6 sm:gap-12 justify-center items-center relative w-full overflow-x-auto">
+            
+            {/* ROUND 1 - 20 Rooms (G1-G20) */}
+            <div className="flex flex-col gap-0.5 justify-center flex-shrink-0">
+              {round1Rooms.map((room, idx) => {
+                const isUserRoom = (idx + 1) === groupNumber;  // Fixed: direct comparison with groupNumber (1-20)
+                const isHovered = hoveredRoom === `r1-${idx}`;
+                
+                return (
+                  <div key={room.id} className="flex flex-col gap-0.5">
+                    <div
+                      onClick={() => {
+                        soundManager.play('click');
+                        setSelectedRoom(selectedRoom === `r1-${idx}` ? null : `r1-${idx}`);
+                      }}
+                      onMouseEnter={() => setHoveredRoom(`r1-${idx}`)}
+                      onMouseLeave={() => setHoveredRoom(null)}
+                      className={`cursor-pointer transition-all duration-300 border rounded px-2 py-1 sm:px-3 sm:py-2 w-32 sm:w-40 text-center backdrop-blur-sm text-[8px] sm:text-[9px] ${
+                        isUserRoom
+                          ? 'border-neon-green/90 bg-neon-green/20 shadow-[0_0_25px_rgba(0,255,0,0.6)] ring-2 ring-neon-green/70'  // User's room highlighted in green
+                          : selectedRoom === `r1-${idx}`
+                          ? 'border-neon-cyan bg-neon-cyan/20 shadow-[0_0_15px_rgba(0,255,255,0.4)]'
+                          : 'border-neon-cyan/40 bg-black/50 hover:border-neon-cyan'
+                      }`}
+                      title={`Room ${room.roomLabel}`}
+                    >
+                      <RoomCardContent room={room} isHovered={isHovered} round={1} showPlayers={true} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {round2Rooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
-            ))}
+            {/* ROUND 2 - 4 Quarter Finals */}
+            <div className="flex flex-col gap-4 justify-center flex-shrink-0">
+              {round2Rooms.map((room, idx) => {
+                const isHovered = hoveredRoom === `r2-${idx}`;
+                
+                return (
+                  <div key={room.id} className="flex flex-col gap-0.5">
+                    <div
+                      onClick={() => {
+                        soundManager.play('click');
+                        setSelectedRoom(selectedRoom === `r2-${idx}` ? null : `r2-${idx}`);
+                      }}
+                      onMouseEnter={() => setHoveredRoom(`r2-${idx}`)}
+                      onMouseLeave={() => setHoveredRoom(null)}
+                      className={`cursor-pointer transition-all duration-300 border-2 rounded px-2 py-1 sm:px-3 sm:py-2 w-32 sm:w-40 text-center backdrop-blur-sm text-[8px] sm:text-[9px] ${
+                        selectedRoom === `r2-${idx}`
+                          ? 'border-neon-pink bg-neon-pink/20 shadow-[0_0_20px_rgba(255,0,128,0.4)]'
+                          : 'border-neon-pink/40 bg-black/50 hover:border-neon-pink'
+                      }`}
+                      title={`${room.roomLabel}`}
+                    >
+                      <RoomCardContent room={room} isHovered={isHovered} round={2} showPlayers={false} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ROUND 3 - Final */}
+            <div className="flex flex-col gap-1.5 justify-center flex-shrink-0">
+              {round3Rooms.map((room, idx) => {
+                const isHovered = hoveredRoom === `r3-${idx}`;
+                
+                return (
+                  <div key={room.id} className="flex flex-col gap-0.5">
+                    <div
+                      onClick={() => {
+                        soundManager.play('click');
+                        setSelectedRoom(selectedRoom === `r3-${idx}` ? null : `r3-${idx}`);
+                      }}
+                      onMouseEnter={() => setHoveredRoom(`r3-${idx}`)}
+                      onMouseLeave={() => setHoveredRoom(null)}
+                      className={`cursor-pointer transition-all duration-300 border-2 rounded px-2 py-1 sm:px-3 sm:py-2 w-32 sm:w-40 text-center backdrop-blur-sm text-[8px] sm:text-[9px] ${
+                        selectedRoom === `r3-${idx}`
+                          ? 'border-neon-gold bg-neon-gold/20 shadow-[0_0_25px_rgba(255,215,0,0.5)]'
+                          : 'border-neon-gold/40 bg-black/50 hover:border-neon-gold/70'
+                      }`}
+                      title="Grand Final - 4 Players"
+                    >
+                      <RoomCardContent room={room} isHovered={isHovered} round={3} showPlayers={false} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Trophy Decoration */}
+            <div className="flex flex-col justify-center items-center gap-2 flex-shrink-0 ml-4 sm:ml-6">
+              <div className="text-4xl sm:text-5xl drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] animate-bounce">🏆</div>
+              <div className="text-xs font-arcade text-neon-gold font-bold tracking-wider hidden sm:block">CHAMPION</div>
+            </div>
           </div>
 
-          {/* ROUND 3: FINAL ROOM */}
-          <div className="flex flex-col justify-center gap-8">
-            <div className="text-center">
-              <div className="text-xs font-arcade text-neon-gold font-bold uppercase bg-black/60 border border-neon-gold/50 px-3 py-1 rounded">
-                Semi Finals
-              </div>
-            </div>
-
-            <RoomCard room={round3Rooms[0]} />
-          </div>
-
-          {/* CHAMPION TROPHY */}
-          <div className="flex flex-col justify-center items-center gap-4 px-8">
-            <div className="text-5xl drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] animate-bounce">
-              🏆
-            </div>
-            <div className="bg-gradient-to-b from-neon-gold/20 to-neon-gold/10 border-2 border-neon-gold/60 rounded-lg px-4 py-3 text-center backdrop-blur-sm">
-              <div className="text-base font-arcade text-neon-gold tracking-widest font-bold">
-                CHAMPION
-              </div>
-              <div className="text-[8px] text-neon-cyan/70 mt-1">
-                Winner Takes All
-              </div>
-            </div>
+          {/* Proceed Button */}
+          <div className="mt-12 flex gap-4">
+            <button
+              onClick={() => {
+                soundManager.play('click');
+                if (onProceedClick) onProceedClick();
+              }}
+              className="px-6 sm:px-8 py-2 sm:py-3 font-arcade text-xs sm:text-sm tracking-wider text-black bg-gradient-to-r from-neon-green to-neon-cyan hover:shadow-[0_0_30px_rgba(0,255,0,0.6)] transition-all duration-300 shadow-[0_0_15px_rgba(0,255,0,0.4)] rounded border-2 border-transparent hover:border-neon-green whitespace-nowrap font-black"
+            >
+              START TOURNAMENT
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* Action Bar - Fixed at Bottom */}
-      <div className="sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent border-t-2 border-neon-cyan/60 px-3 sm:px-4 py-3 flex items-center justify-between gap-3 z-10 flex-shrink-0">
-        <div className="text-xs sm:text-sm text-neon-cyan font-mono">
-          Your Group: <span className="font-arcade font-bold text-neon-gold">G{groupNumber}</span>
-        </div>
-        <button
-          onClick={() => {
-            soundManager.play('click');
-            onProceedClick?.();
-          }}
-          className="px-4 sm:px-6 py-2 bg-gradient-to-r from-neon-green to-neon-cyan text-black font-arcade text-xs sm:text-sm font-bold hover:from-neon-cyan hover:to-neon-green hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] transition-all shadow-[0_0_20px_rgba(0,255,0,0.5)] transform hover:scale-105 active:scale-95 whitespace-nowrap"
-        >
-          ▶ PROCEED
-        </button>
       </div>
     </div>
   );

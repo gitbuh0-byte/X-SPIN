@@ -15,33 +15,36 @@ const TournamentBracket: React.FC<TournamentBracketProps> = ({ countdown, groupN
           TOURNAMENT GROUPS
         </div>
         <div className="text-[9px] sm:text-xs text-slate-400 font-mono mt-1">
-          10 Groups • {playersInGroup} Players Each
+          20 Groups • {playersInGroup} Players Each
         </div>
       </div>
 
-      {/* Stage 1: 10 Groups Grid */}
+      {/* Stage 1: 20 Groups Grid */}
       <div className="w-full flex-shrink-0 mb-2 sm:mb-3">
         <div className="text-center mb-1.5 sm:mb-2">
           <div className="text-[9px] sm:text-xs text-slate-400 font-arcade tracking-wider uppercase">Stage 1: Group Rounds</div>
         </div>
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 px-1 sm:px-2">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((group) => (
+        <div className="grid grid-cols-10 gap-1 sm:gap-1.5 px-1 sm:px-2">
+          {Array.from({ length: 20 }).map((_, i) => {
+            const group = i + 1;
+            return (
             <div
               key={`group-${group}`}
-              className={`flex items-center justify-center rounded transition-all duration-300 h-12 sm:h-14 md:h-16 ${
+              className={`flex items-center justify-center rounded transition-all duration-300 h-10 sm:h-12 md:h-14 ${
                 group === groupNumber
                   ? 'bg-gradient-to-b from-neon-gold/50 to-neon-cyan/50 border border-neon-gold shadow-xl animate-[pulse_1.5s_ease-in-out_infinite]'
                   : 'bg-black/80 border border-slate-700'
               }`}
               style={group === groupNumber ? { boxShadow: '0 0 25px rgba(255,215,0,0.7), inset 0 0 15px rgba(255,215,0,0.2)' } : {}}
             >
-              <div className={`text-xs sm:text-sm font-arcade font-bold ${
+              <div className={`text-[10px] sm:text-xs font-arcade font-bold ${
                 group === groupNumber ? 'text-neon-gold' : 'text-slate-400'
               }`}>
                 G{group}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
