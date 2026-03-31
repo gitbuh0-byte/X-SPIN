@@ -77,29 +77,29 @@ const BettingModal: React.FC<BettingModalProps> = ({
   const config = modeConfig[gameMode];
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-lg p-3 sm:p-4">
-      <div className={`bg-vegas-panel/95 border border-${config.color}/50 p-4 sm:p-6 md:p-8 rounded-lg w-full max-w-md relative shadow-[0_0_50px_rgba(0,255,255,0.15)] clip-corner`}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-lg p-2 sm:p-3 md:p-4">
+      <div className={`bg-vegas-panel/95 border border-${config.color}/50 p-3 sm:p-4 md:p-6 lg:p-8 rounded-lg w-full max-w-sm sm:max-w-md relative shadow-[0_0_50px_rgba(0,255,255,0.15)] clip-corner`}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50"></div>
         
         {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          <div className={`text-4xl sm:text-5xl md:text-6xl font-arcade font-black text-${config.color} mb-2 text-glow-cyan`}>
+        <div className="text-center mb-4 sm:mb-5 md:mb-6">
+          <div className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-arcade font-black text-${config.color} mb-1 sm:mb-2 text-glow-cyan`}>
             💰
           </div>
-          <h2 className="text-lg sm:text-xl md:text-2xl font-arcade text-white mb-1 tracking-widest uppercase">
+          <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-arcade text-white mb-1 tracking-widest uppercase">
             PLACE YOUR BET
           </h2>
-          <p className={`text-xs sm:text-sm font-mono text-${config.color} opacity-80`}>
+          <p className={`text-[10px] sm:text-xs md:text-sm font-mono text-${config.color} opacity-80`}>
             {config.name} • {config.description}
           </p>
         </div>
 
         {/* Balance Display */}
-        <div className="bg-black/40 border border-white/10 rounded-sm p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+        <div className="bg-black/40 border border-white/10 rounded-sm p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-6">
+          <div className="text-slate-500 text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-wider mb-1">
             Available Balance
           </div>
-          <div className={`text-2xl sm:text-3xl md:text-4xl font-arcade font-black ${
+          <div className={`text-xl sm:text-2xl md:text-3xl lg:text-4xl font-arcade font-black ${
             (userBalance - parseInt(betAmount)) < 0 ? 'text-red-500' : 'text-neon-green'
           }`}>
             ${(userBalance - parseInt(betAmount)).toLocaleString()}
@@ -107,27 +107,27 @@ const BettingModal: React.FC<BettingModalProps> = ({
         </div>
 
         {/* Bet Amount Display */}
-        <div className="bg-black/40 border border-white/10 rounded-sm p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+        <div className="bg-black/40 border border-white/10 rounded-sm p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 md:mb-6">
+          <div className="text-slate-500 text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-wider mb-1">
             Bet Amount
           </div>
-          <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-neon-cyan font-black">
+          <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-arcade text-neon-cyan font-black">
             ${parseInt(betAmount).toLocaleString()}
           </div>
         </div>
 
         {/* Quick Bet Buttons */}
-        <div className="mb-6 sm:mb-8">
-          <div className="text-slate-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider mb-2">
+        <div className="mb-4 sm:mb-5 md:mb-8">
+          <div className="text-slate-500 text-[8px] sm:text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-1 sm:mb-2">
             Quick Select
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-1 sm:gap-2">
             {[10, 25, 50, 100].map(amount => (
               <button
                 key={amount}
                 onClick={() => handleQuickBet(amount)}
                 disabled={amount > userBalance}
-                className={`py-2 sm:py-2.5 border font-arcade text-[9px] sm:text-xs uppercase tracking-widest transition-all rounded-sm ${
+                className={`py-1.5 sm:py-2 md:py-2.5 border font-arcade text-[8px] sm:text-[9px] md:text-xs uppercase tracking-widest transition-all rounded-sm ${
                   amount > userBalance
                     ? 'border-slate-700 text-slate-600 opacity-50 cursor-not-allowed'
                     : 'border-neon-cyan text-neon-cyan hover:bg-neon-cyan/20'
@@ -140,26 +140,26 @@ const BettingModal: React.FC<BettingModalProps> = ({
         </div>
 
         {/* Info Text */}
-        <div className="bg-neon-purple/10 border border-neon-purple/30 rounded-sm p-3 sm:p-4 mb-6 sm:mb-8">
-          <p className="text-slate-400 text-[9px] sm:text-xs font-mono leading-relaxed">
+        <div className="bg-neon-purple/10 border border-neon-purple/30 rounded-sm p-2 sm:p-3 md:p-4 mb-4 sm:mb-5 md:mb-8">
+          <p className="text-slate-400 text-[8px] sm:text-[9px] md:text-xs font-mono leading-relaxed">
             Your bet is locked in once confirmed. You cannot enter the game room without placing a bet.
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 sm:gap-4">
+        <div className="flex gap-2 sm:gap-3 md:gap-4">
           <button
             onClick={() => {
               soundManager.play('click');
               onCancel();
             }}
-            className="flex-1 py-2.5 sm:py-3 border border-slate-700 text-slate-400 font-arcade hover:border-white hover:text-white transition-colors uppercase text-[9px] sm:text-xs tracking-wide rounded-sm"
+            className="flex-1 py-2 sm:py-2.5 md:py-3 border border-slate-700 text-slate-400 font-arcade hover:border-white hover:text-white transition-colors uppercase text-[8px] sm:text-[9px] md:text-xs tracking-wide rounded-sm"
           >
             CANCEL
           </button>
           <button
             onClick={handleConfirm}
-            className="flex-1 py-2.5 sm:py-3 bg-neon-cyan text-black font-arcade hover:bg-neon-cyan/80 transition-colors uppercase text-[9px] sm:text-xs tracking-wide rounded-sm shadow-[0_0_15px_rgba(0,255,255,0.4)] font-black"
+            className="flex-1 py-2 sm:py-2.5 md:py-3 bg-neon-cyan text-black font-arcade hover:bg-neon-cyan/80 transition-colors uppercase text-[8px] sm:text-[9px] md:text-xs tracking-wide rounded-sm shadow-[0_0_15px_rgba(0,255,255,0.4)] font-black"
           >
             CONFIRM BET
           </button>

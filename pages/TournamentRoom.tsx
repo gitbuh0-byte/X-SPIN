@@ -52,6 +52,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const [userGroup, setUserGroup] = useState<number>(0);
   const [userRoom, setUserRoom] = useState<string>('');
   const [userColor, setUserColor] = useState<string>('');
+  const [colorRevealed, setColorRevealed] = useState<boolean>(false);
   
   // Spinning state
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
@@ -85,6 +86,10 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   const [showRankUp, setShowRankUp] = useState(false);
   const [previousRank, setPreviousRank] = useState<UserRank>(user.rank);
   
+  const isColorVisible = phase === 'COLOR_ASSIGN' || ((phase !== 'BROWSE' && phase !== 'BET_PROMPT') && colorRevealed);
+  const userColorDisplay = isColorVisible ? userColor : 'Hidden';
+  const userColorStyle = isColorVisible ? COLOR_HEX[userColor as keyof typeof COLOR_HEX] : '#4b5563';
+
   // Calculate total pot (100 players * entry fee)
   const totalPot = TOTAL_PLAYERS * ENTRY_FEE;
 
@@ -188,6 +193,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
   };
 
   const proceedFromColor = () => {
+    setColorRevealed(true);
     setPhase('ROOM_ASSIGN');
   };
 
@@ -406,13 +412,13 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
     <div className="w-full h-screen bg-gradient-to-b from-slate-900 to-black text-white flex flex-col overflow-hidden">
       {/* Main Header - Always visible except on BROWSE */}
       {phase !== 'BROWSE' && (
-        <div className="bg-gradient-to-r from-neon-gold/15 via-black to-neon-pink/15 border-b-2 border-neon-gold/40 shadow-[0_0_30px_rgba(255,215,0,0.3)] px-2 sm:px-4 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2 backdrop-blur-sm">
-          <div className="min-w-0">
-            <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan whitespace-nowrap animate-pulse drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] font-black tracking-wider">🏆 TOURNAMENT</div>
+        <div className="bg-gradient-to-r from-neon-gold/15 via-black to-neon-pink/15 border-b-2 border-neon-gold/40 shadow-[0_0_30px_rgba(255,215,0,0.3)] px-2 sm:px-4 py-2 sm:py-3 md:py-4 flex items-center justify-between flex-shrink-0 gap-2 backdrop-blur-sm">
+          <div className="min-w-0 flex-1">
+            <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan whitespace-nowrap animate-pulse drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] font-black tracking-wider">🏆 TOURNAMENT</div>
           </div>
           <div className="text-right hidden sm:block">
             <div className="text-[10px] sm:text-xs text-slate-400 font-arcade tracking-wider uppercase">Your Balance</div>
-            <div className="text-neon-green font-arcade text-base sm:text-xl font-black drop-shadow-[0_0_10px_rgba(0,255,0,0.5)]">${user.balance.toLocaleString()}</div>
+            <div className="text-neon-green font-arcade text-sm sm:text-base md:text-xl font-black drop-shadow-[0_0_10px_rgba(0,255,0,0.5)]">${user.balance.toLocaleString()}</div>
           </div>
         </div>
       )}
@@ -420,7 +426,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
       {/* Content Area */}
       {/* GROUPS Phase: 20 wheels spinning (invisible), only player's room wheel visible */}
       {phase === 'GROUPS' && (
-        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-16 sm:pt-24`}>
+        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-12 sm:pt-16 md:pt-24`}>
           <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
             {/* Player's group wheel for current spin */}
             <SpinWheel
@@ -437,7 +443,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* QUARTERFINALS Phase: Shared wheel with 5 players per group */}
       {phase === 'QUARTERFINALS' && (
-        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-16 sm:pt-24`}>
+        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-12 sm:pt-16 md:pt-24`}>
           <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
             {/* Quarterfinals wheel for current spin */}
             <SpinWheel
@@ -454,7 +460,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
       {/* FINAL Phase: Shared wheel with 4 finalists */}
       {phase === 'FINAL' && (
-        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-0`}>
+        <div className={`fixed inset-0 z-30 flex items-center justify-center pointer-events-none px-2 sm:px-0 pt-8 sm:pt-12 md:pt-16`}>
           <div className="pointer-events-none scale-75 sm:scale-90 md:scale-100 origin-center">
             <SpinWheel
               segments={TOURNAMENT_SEGMENTS_FINAL}
@@ -593,31 +599,31 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
           winnerCount={displayedWinners.length}
         />
       )}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-auto relative">
         {/* BROWSE - Initial Tournament Selection */}
         {phase === 'BROWSE' && (
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div className="text-center w-full max-w-md">
-              <div className="text-5xl sm:text-6xl mb-4 sm:mb-6 animate-bounce">🎰</div>
-              <div className="text-4xl sm:text-5xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan mb-3 drop-shadow-[0_0_20px_rgba(255,215,0,0.6)] animate-pulse font-black tracking-wider">TOURNAMENT</div>
-              <div className="text-neon-cyan text-base sm:text-lg mb-6 sm:mb-8 font-arcade tracking-wider drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">200 Players • 20 Groups • Winner Takes All</div>
-              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-5 sm:p-7 mb-7 sm:mb-9 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
-                <div className="text-xs sm:text-sm text-slate-300 space-y-3 font-arcade tracking-wider">
-                  <div className="flex items-center gap-2"><span className="text-neon-green text-lg">✓</span><span>20 groups of 5 players</span></div>
-                  <div className="flex items-center gap-2"><span className="text-neon-cyan text-lg">✓</span><span>Win your group → Join Final Round</span></div>
-                  <div className="flex items-center gap-2"><span className="text-neon-gold text-lg">✓</span><span>Grand Champion wins <span className="font-black text-neon-gold">${totalPot.toLocaleString()}</span></span></div>
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div className="text-center w-full max-w-sm sm:max-w-md">
+              <div className="text-4xl sm:text-5xl md:text-6xl mb-3 sm:mb-4 md:mb-6 animate-bounce">🎰</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-gold via-neon-pink to-neon-cyan mb-2 sm:mb-3 md:mb-4 drop-shadow-[0_0_20px_rgba(255,215,0,0.6)] animate-pulse font-black tracking-wider">TOURNAMENT</div>
+              <div className="text-neon-cyan text-sm sm:text-base md:text-lg mb-4 sm:mb-6 md:mb-8 font-arcade tracking-wider drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">200 Players • 20 Groups • Winner Takes All</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-4 sm:p-5 md:p-7 mb-5 sm:mb-7 md:mb-9 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
+                <div className="text-[10px] sm:text-xs md:text-sm text-slate-300 space-y-2 sm:space-y-3 font-arcade tracking-wider">
+                  <div className="flex items-center gap-2"><span className="text-neon-green text-base sm:text-lg">✓</span><span>20 groups of 5 players</span></div>
+                  <div className="flex items-center gap-2"><span className="text-neon-cyan text-base sm:text-lg">✓</span><span>Win your group → Join Final Round</span></div>
+                  <div className="flex items-center gap-2"><span className="text-neon-gold text-base sm:text-lg">✓</span><span>Grand Champion wins <span className="font-black text-neon-gold">${totalPot.toLocaleString()}</span></span></div>
                 </div>
               </div>
-              <div className="flex gap-3 sm:gap-4 flex-col sm:flex-row justify-center items-center w-full">
+              <div className="flex gap-2 sm:gap-3 md:gap-4 flex-col sm:flex-row justify-center items-center w-full">
                 <button
                   onClick={() => { soundManager.play('click'); window.location.hash = '/#/dashboard'; }}
-                  className="px-8 sm:px-10 py-3 sm:py-3.5 border-2 border-slate-500 text-slate-300 font-arcade text-sm sm:text-base hover:border-neon-pink hover:text-neon-pink transition-all duration-300 rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] font-bold w-full sm:w-auto"
+                  className="px-6 sm:px-8 md:px-10 py-2.5 sm:py-3 md:py-3.5 border-2 border-slate-500 text-slate-300 font-arcade text-xs sm:text-sm md:text-base hover:border-neon-pink hover:text-neon-pink transition-all duration-300 rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] font-bold w-full sm:w-auto"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); startBetFlow(); }}
-                  className="px-8 sm:px-10 py-3 sm:py-3.5 text-neon-green border-2 border-neon-green font-arcade text-sm sm:text-base font-black transition-all duration-300 rounded-lg hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] w-full sm:w-auto"
+                  className="px-6 sm:px-8 md:px-10 py-2.5 sm:py-3 md:py-3.5 text-neon-green border-2 border-neon-green font-arcade text-xs sm:text-sm md:text-base font-black transition-all duration-300 rounded-lg hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,0,0.8)] w-full sm:w-auto"
                 >
                   JOIN TOURNAMENT
                 </button>
@@ -628,17 +634,17 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* BET_PROMPT - Place Bet */}
         {phase === 'BET_PROMPT' && (
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div className="text-center max-w-sm w-full">
-              <div className="text-6xl sm:text-7xl mb-5 sm:mb-6 animate-bounce">💰</div>
-              <div className="text-3xl sm:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan mb-5 font-black tracking-wider">Place Your Bet</div>
-              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-6 sm:p-8 mb-6 sm:mb-8 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
-                <div className="text-slate-400 mb-3 text-xs font-arcade tracking-wider uppercase">Entry Fee</div>
-                <div className="text-5xl sm:text-6xl font-arcade text-neon-cyan mb-5 drop-shadow-[0_0_15px_rgba(0,255,255,0.5)] font-black"><span className="text-neon-gold">$</span>{ENTRY_FEE}</div>
-                <div className="text-sm text-slate-300 mb-1 font-arcade">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div className="text-center max-w-sm sm:max-w-md w-full">
+              <div className="text-5xl sm:text-6xl md:text-7xl mb-4 sm:mb-5 md:mb-6 animate-bounce">💰</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-cyan mb-4 sm:mb-5 md:mb-6 font-black tracking-wider">Place Your Bet</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-pink/40 rounded-xl p-4 sm:p-5 md:p-6 mb-4 sm:mb-5 md:mb-6 shadow-[0_0_30px_rgba(255,0,128,0.2)]">
+                <div className="text-slate-400 mb-2 sm:mb-3 text-[10px] sm:text-xs font-arcade tracking-wider uppercase">Entry Fee</div>
+                <div className="text-4xl sm:text-5xl md:text-6xl font-arcade text-neon-cyan mb-4 sm:mb-5 md:mb-6 drop-shadow-[0_0_15px_rgba(0,255,255,0.5)] font-black"><span className="text-neon-gold">$</span>{ENTRY_FEE}</div>
+                <div className="text-xs sm:text-sm text-slate-300 mb-1 font-arcade">
                   Your Balance: <span className={`font-black ${user.balance >= ENTRY_FEE ? 'text-neon-green' : 'text-red-400'}`}>${user.balance}</span>
                 </div>
-                <div className={`text-xs font-arcade mt-2 px-3 py-2 rounded-lg ${
+                <div className={`text-[10px] sm:text-xs font-arcade mt-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg ${
                   user.balance >= ENTRY_FEE 
                     ? 'bg-neon-green/20 text-neon-green border border-neon-green/40' 
                     : 'bg-red-500/20 text-red-300 border border-red-500/40'
@@ -646,17 +652,17 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   {user.balance >= ENTRY_FEE ? '✓ Sufficient funds' : '⚠ Insufficient funds'}
                 </div>
               </div>
-              <div className="flex gap-3 sm:gap-4 flex-col sm:flex-row justify-center items-center w-full">
+              <div className="flex gap-2 sm:gap-3 md:gap-4 flex-col sm:flex-row justify-center items-center w-full">
                 <button
                   onClick={() => { soundManager.play('click'); setPhase('BROWSE'); }}
-                  className="px-8 sm:px-10 py-3 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 border-slate-500 text-slate-300 hover:border-neon-pink hover:text-neon-pink rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] whitespace-nowrap font-bold duration-300 w-full sm:w-auto"
+                  className="px-6 sm:px-8 md:px-10 py-2.5 sm:py-3 md:py-3.5 font-arcade text-[10px] sm:text-xs md:text-sm tracking-wider transition-all border-2 border-slate-500 text-slate-300 hover:border-neon-pink hover:text-neon-pink rounded-lg hover:shadow-[0_0_15px_rgba(255,0,128,0.3)] whitespace-nowrap font-bold duration-300 w-full sm:w-auto"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={() => { soundManager.play('click'); confirmBet(); }}
                   disabled={user.balance < ENTRY_FEE}
-                  className={`px-8 sm:px-10 py-3 sm:py-3.5 font-arcade text-xs sm:text-sm tracking-wider transition-all border-2 rounded-lg whitespace-nowrap font-black duration-300 w-full sm:w-auto ${
+                  className={`px-6 sm:px-8 md:px-10 py-2.5 sm:py-3 md:py-3.5 font-arcade text-[10px] sm:text-xs md:text-sm tracking-wider transition-all border-2 rounded-lg whitespace-nowrap font-black duration-300 w-full sm:w-auto ${
                     user.balance < ENTRY_FEE
                       ? 'border-slate-600 text-slate-600 cursor-not-allowed opacity-50'
                       : 'border-neon-green text-neon-green hover:bg-gradient-to-r hover:from-neon-green hover:to-neon-cyan hover:text-black hover:shadow-[0_0_25px_rgba(0,255,0,0.6)]'
@@ -671,27 +677,27 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
 
         {/* COLOR_ASSIGN - Color Assignment */}
         {phase === 'COLOR_ASSIGN' && (
-          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-            <div className="text-center max-w-sm w-full">
-              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🎨</div>
-              <div className="text-2xl sm:text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-neon-pink mb-4 font-black tracking-wider">Color Assigned</div>
-              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-cyan/40 rounded-xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
-                <div className="text-slate-400 mb-3 text-xs font-arcade tracking-wider uppercase">Your Tournament Color</div>
-                <div className="flex justify-center items-center mb-4">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+            <div className="text-center max-w-sm sm:max-w-md w-full">
+              <div className="text-4xl sm:text-5xl md:text-6xl mb-3 sm:mb-4 md:mb-5">🎨</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-neon-pink mb-3 sm:mb-4 md:mb-5 font-black tracking-wider">Color Assigned</div>
+              <div className="bg-gradient-to-br from-slate-900/80 via-black/80 to-slate-900/60 border-2 border-neon-cyan/40 rounded-xl p-4 sm:p-5 md:p-6 mb-4 sm:mb-5 md:mb-6 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+                <div className="text-slate-400 mb-2 sm:mb-3 text-[10px] sm:text-xs font-arcade tracking-wider uppercase">Your Tournament Color</div>
+                <div className="flex justify-center items-center mb-3 sm:mb-4">
                   <div
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-4 border-white shadow-[0_0_30px_rgba(255,255,255,0.3)] transform hover:scale-105 transition-transform duration-300"
+                    className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg border-4 border-white shadow-[0_0_30px_rgba(255,255,255,0.3)] transform hover:scale-105 transition-transform duration-300"
                     style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX], boxShadow: `0_0_40px_${COLOR_HEX[userColor as keyof typeof COLOR_HEX]}66` }}
                   />
                 </div>
-                <div className="text-xl sm:text-2xl font-arcade capitalize text-neon-cyan mb-4 font-black tracking-wider">{userColor}</div>
-                <div className="text-xs font-arcade text-slate-300 bg-neon-green/20 border-2 border-neon-green/40 rounded-lg p-2.5 sm:p-3">
+                <div className="text-xl sm:text-2xl md:text-3xl font-arcade capitalize text-neon-cyan mb-3 sm:mb-4 md:mb-5 font-black tracking-wider">{userColorDisplay}</div>
+                <div className="text-[10px] sm:text-xs font-arcade text-slate-300 bg-neon-green/20 border-2 border-neon-green/40 rounded-lg p-2 sm:p-2.5 md:p-3">
                   <div className="text-neon-green font-black mb-1">✓ Bet Locked: ${ENTRY_FEE}</div>
-                  <div className="text-slate-400 text-[11px] sm:text-xs">Your color is fixed for this tournament</div>
+                  <div className="text-slate-400 text-[9px] sm:text-[10px] md:text-xs">Your color is fixed for this tournament</div>
                 </div>
               </div>
               <button
                 onClick={() => { soundManager.play('click'); proceedFromColor(); }}
-                className="w-full px-6 sm:px-8 py-2.5 sm:py-3 text-neon-cyan border-2 border-neon-cyan font-arcade text-sm sm:text-base font-black hover:bg-gradient-to-r hover:from-neon-cyan hover:to-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] transition-all duration-300 rounded-lg"
+                className="w-full px-6 sm:px-8 md:px-10 py-2.5 sm:py-3 md:py-4 text-neon-cyan border-2 border-neon-cyan font-arcade text-sm sm:text-base md:text-lg font-black hover:bg-gradient-to-r hover:from-neon-cyan hover:to-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] transition-all duration-300 rounded-lg"
               >
                 Proceed
               </button>
@@ -720,7 +726,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
               </div>
               <button
                 onClick={() => { soundManager.play('click'); joinGameroom(); }}
-                className="w-full px-6 sm:px-8 py-2.5 sm:py-3 text-neon-pink border-2 border-neon-pink font-arcade text-sm sm:text-base font-black hover:bg-gradient-to-r hover:from-neon-pink hover:to-neon-gold hover:text-black hover:shadow-[0_0_30px_rgba(255,0,128,0.6)] transition-all duration-300 rounded-lg"
+                className="hidden lg:block w-full px-6 sm:px-8 py-2.5 sm:py-3 text-neon-pink border-2 border-neon-pink font-arcade text-sm sm:text-base font-black hover:bg-gradient-to-r hover:from-neon-pink hover:to-neon-gold hover:text-black hover:shadow-[0_0_30px_rgba(255,0,128,0.6)] transition-all duration-300 rounded-lg"
               >
                 Join Gameroom
               </button>
@@ -877,9 +883,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <div className="flex items-center gap-2 mt-0.5">
                       <div
                         className="w-4 h-4 rounded-full border border-white"
-                        style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                        style={{ backgroundColor: isColorVisible ? COLOR_HEX[userColor as keyof typeof COLOR_HEX] : '#4b5563' }}
                       />
-                      <span className="font-arcade capitalize">{userColor}</span>
+                      <span className="font-arcade capitalize">{isColorVisible ? userColor : 'Hidden'}</span>
                     </div>
                   </div>
                   <div>
@@ -1018,9 +1024,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         <div className="flex items-center gap-2 mt-1.5">
                           <div
                             className="w-6 h-6 rounded border-2 border-white"
-                            style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                            style={{ backgroundColor: userColorStyle }}
                           />
-                          <span className="font-arcade text-sm capitalize">{userColor}</span>
+                          <span className="font-arcade text-sm capitalize">{userColorDisplay}</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t border-neon-pink/20">
@@ -1222,9 +1228,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <div className="flex items-center gap-2 mt-0.5">
                       <div
                         className="w-4 h-4 rounded-full border border-white"
-                        style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                        style={{ backgroundColor: userColorStyle }}
                       />
-                      <span className="font-arcade capitalize">{userColor}</span>
+                      <span className="font-arcade capitalize">{userColorDisplay}</span>
                     </div>
                   </div>
                   <div>
@@ -1369,9 +1375,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         <div className="flex items-center gap-2 mt-1.5">
                           <div
                             className="w-6 h-6 rounded border-2 border-white"
-                            style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                            style={{ backgroundColor: userColorStyle }}
                           />
-                          <span className="font-arcade text-sm capitalize">{userColor}</span>
+                          <span className="font-arcade text-sm capitalize">{userColorDisplay}</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t border-neon-cyan/20">
@@ -1554,7 +1560,7 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                   style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX], boxShadow: `0_0_50px_${COLOR_HEX[userColor as keyof typeof COLOR_HEX]}80` }}
                 />
               </div>
-              <div className="text-2xl sm:text-3xl font-arcade capitalize text-neon-cyan mb-6 font-black tracking-wider drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">{userColor}</div>
+              <div className="text-2xl sm:text-3xl font-arcade capitalize text-neon-cyan mb-6 font-black tracking-wider drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">{userColorDisplay}</div>
               <div className="text-5xl sm:text-6xl font-arcade text-neon-pink mb-5 animate-bounce font-black">{finalColorCountdown}</div>
               <div className="text-sm text-slate-400 font-arcade">⏳ Joining final room...</div>
             </div>
@@ -1674,9 +1680,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                     <div className="flex items-center gap-2 mt-0.5">
                       <div
                         className="w-3 h-3 sm:w-4 sm:h-4 rounded-full border border-white"
-                        style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                        style={{ backgroundColor: userColorStyle }}
                       />
-                      <span className="font-arcade capitalize text-[7px] sm:text-xs">{userColor}</span>
+                      <span className="font-arcade capitalize text-[7px] sm:text-xs">{userColorDisplay}</span>
                     </div>
                   </div>
                   <div>
@@ -1760,9 +1766,9 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
                         <div className="flex items-center gap-2 mt-1.5">
                           <div
                             className="w-6 h-6 rounded border-2 border-white"
-                            style={{ backgroundColor: COLOR_HEX[userColor as keyof typeof COLOR_HEX] }}
+                            style={{ backgroundColor: userColorStyle }}
                           />
-                          <span className="font-arcade text-sm capitalize">{userColor}</span>
+                          <span className="font-arcade text-sm capitalize">{userColorDisplay}</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t border-neon-pink/20">
@@ -1939,18 +1945,28 @@ const TournamentRoom: React.FC<TournamentRoomProps> = ({ user, updateBalance, on
         {showRankUp && <RankUpModal newRank={user.rank} previousRank={previousRank} onClose={() => setShowRankUp(false)} />}
       </div>
 
-      {/* Bottom Status Bar - Always visible when in tournament */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 py-3 bg-black border-t-2 border-neon-cyan flex items-center justify-between">
-        <div className="text-xs font-arcade text-slate-400">Your Group: <span className="room-badge">G{userGroup}</span></div>
-        {phase === 'ROOM_ASSIGN' && (
-          <button
-            onClick={() => { soundManager.play('click'); joinGameroom(); }}
-            className="px-4 py-1.5 border-2 border-neon-green text-neon-green font-arcade text-xs font-black tracking-wider hover:bg-neon-green hover:text-black hover:shadow-[0_0_20px_rgba(0,255,0,0.6)] transition-all active:scale-95"
-          >
-            ▶ PROCEED
-          </button>
-        )}
-      </div>
+      {/* Bottom Status Bar - visible from ROOM_ASSIGN onwards (after COLOR_ASSIGN flow) */}
+      {(phase === 'ROOM_ASSIGN' || phase === 'BRACKET_VIEW' || phase === 'LOBBY' || phase === 'GROUPS' || phase === 'QUARTERFINALS' || phase === 'FINAL_COLOR' || phase === 'FINAL_PREP' || phase === 'FINAL' || phase === 'FINAL_RESULT' || phase === 'ELIM_LOSE' || phase === 'GROUP_RESULT') && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-2 sm:px-3 py-2 sm:py-3 bg-black border-t-2 border-neon-cyan flex items-center justify-between gap-2">
+          <div className="text-[10px] sm:text-xs font-arcade text-slate-400">Your Group: <span className="room-badge">G{userGroup}</span></div>
+          {phase === 'ROOM_ASSIGN' && (
+            <button
+              onClick={() => { soundManager.play('click'); joinGameroom(); }}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 border-2 border-neon-green text-neon-white bg-gradient-to-r from-neon-green to-neon-cyan font-arcade text-xs sm:text-sm font-black tracking-widest shadow-[0_0_20px_rgba(0,255,0,0.6)] hover:from-neon-cyan hover:to-neon-green hover:text-black transition-all active:scale-95"
+            >
+              JOIN
+            </button>
+          )}
+          {phase === 'BRACKET_VIEW' && (
+            <button
+              onClick={() => { soundManager.play('click'); setPhase('GROUPS'); setCountdown(3); setCountdownActive(true); }}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 border-2 border-neon-green text-neon-white bg-gradient-to-r from-neon-green to-neon-cyan font-arcade text-xs sm:text-sm font-black tracking-widest shadow-[0_0_20px_rgba(0,255,0,0.6)] hover:from-neon-cyan hover:to-neon-green hover:text-black transition-all active:scale-95"
+            >
+              START
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Animation Styles */}
       <style>{`
