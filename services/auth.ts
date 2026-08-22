@@ -53,6 +53,20 @@ const FIREBASE_CONFIG = {
 let firebaseApp: unknown = null;
 let firebaseAuth: Auth | null = null;
 let firebaseInitialized = false;
+const AUTH_OPERATION_TIMEOUT_MS = 10000;
+
+const withAuthTimeout = async <T>(operation: Promise<T>, operationName: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${operationName} timed out. Check your connection and try again.`)), AUTH_OPERATION_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 const ensureSupabase = () => {
   if (!supabase || !isSupabaseConfigured) {
@@ -164,7 +178,7 @@ export const signUpWithEmail = async ({ email, password, username, phoneNumber }
 
 export const signInWithEmail = async ({ email, password }: EmailAuthInput): Promise<void> => {
   const client = ensureSupabase();
-  const { error } = await client.auth.signInWithPassword({ email, password });
+  const { error } = await withAuthTimeout(client.auth.signInWithPassword({ email, password }), 'Sign-in');
   if (error) throw error;
 };
 
@@ -274,7 +288,7 @@ export const processAuthRedirect = async (): Promise<AuthRedirectResult> => {
   }
 
   if (authCode) {
-    const { data, error } = await client.auth.exchangeCodeForSession(authCode);
+    const { data, error } = await withAuthTimeout(client.auth.exchangeCodeForSession(authCode), 'OAuth callback');
     sessionResult = { data, error };
     if (error) {
       console.error('[auth] exchangeCodeForSession failed', error);
@@ -288,7 +302,7 @@ export const processAuthRedirect = async (): Promise<AuthRedirectResult> => {
     if (hash.startsWith('#')) {
       window.location.hash = hash;
     }
-    const { data, error } = await client.auth.getSession();
+    const { data, error } = await withAuthTimeout(client.auth.getSession(), 'Auth callback session');
     sessionResult = { data, error };
     if (error) {
       console.error('[auth] getSession after auth fragment failed', error);
@@ -315,11 +329,10 @@ export const ensureUserProfile = async (authUser: AuthUser): Promise<User> => {
     ...buildDefaultProfile(authUser),
   };
 
-  const { data, error } = await client
-    .from('profiles')
-    .upsert(payload, { onConflict: 'id' })
-    .select('*')
-    .single();
+  const { data, error } = await withAuthTimeout(
+    client.from('profiles').upsert(payload, { onConflict: 'id' }).select('*').single(),
+    'Profile loading'
+  );
 
   if (error) {
     throw error;
@@ -335,7 +348,7 @@ export const getCurrentAuthenticatedUser = async (): Promise<User | null> => {
   const {
     data: { session },
     error: sessionError,
-  } = await client.auth.getSession();
+  } = await withAuthTimeout(client.auth.getSession(), 'Session loading');
 
   if (sessionError) throw sessionError;
   if (!session?.user) return null;
